@@ -22,7 +22,7 @@ variable "region" {
 
 variable "server_plan" {
   type        = string
-  default     = "B2-2-2gb-40s-shared" # Cloud VPS 2 (Gen 2: 2 vCores / 2 GB RAM / 40GB SSD)
+  default     = "B2-2-2gb-40s-shared" # Cloud VPS 2 (Gen 2: 2 vCores/2 GB RAM/40GB SSD)
   description = "Slug del plan de cómputo en Cherry Servers"
 }
 

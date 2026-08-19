@@ -2,7 +2,8 @@
 # 1. Configuración del Proveedor (Cherry Servers)
 # =============================================================================
 terraform {
-  required_version = ">= 1.6.0"
+  required_version = ">= 1.8.0"
+
   required_providers {
     cherryservers = {
       source  = "cherryservers/cherryservers"

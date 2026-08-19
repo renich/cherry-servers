@@ -14,7 +14,7 @@ variable "project_id" {
 }
 
 variable "region" {
-  description = "Región de despliegue por defecto (Lituania / región UE para óptima disponibilidad y costo Spot)"
+  description = "Región de despliegue por defecto (Lituania/región UE para óptima disponibilidad y costo Spot)"
   type        = string
   default     = "LT-Siauliai"
 }

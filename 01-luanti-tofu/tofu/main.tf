@@ -18,7 +18,7 @@ resource "cherryservers_server" "luanti_node" {
   ssh_key_ids = [cherryservers_ssh_key.deployer.id]
 
   # Inyectamos el script de arranque codificado en Base64 (requerido por Cherry Servers)
-  user_data = base64encode(templatefile("${path.module}/../scripts/bootstrap.sh", {
+  user_data = base64encode(templatefile("${path.module}/../scripts/bootstrap.bash", {
     SERVER_NAME = var.server_name
     SERVER_PORT = 30000
   }))
@@ -27,7 +27,7 @@ resource "cherryservers_server" "luanti_node" {
   tags = {
     Environment = "Lab"
     ManagedBy   = "OpenTofu"
-    Series      = "LinuxEnEspanol"
+    Series      = "Comos-Linux-FOSS"
     Game        = "Luanti"
   }
 }

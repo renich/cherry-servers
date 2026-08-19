@@ -1,4 +1,4 @@
-# OpenTofu / Terraform local state & secrets
+# OpenTofu/Terraform local state & secrets
 .terraform/
 .terraform.lock.hcl
 *.tfstate
