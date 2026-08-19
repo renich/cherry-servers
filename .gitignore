@@ -1,0 +1,29 @@
+# OpenTofu / Terraform local state & secrets
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+!terraform.tfvars.example
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# SSH & private keys
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# Internal workflow assets & agent metadata
+AGENTS.md
+**/prompt.txt
+.agents/
+
+# OS & Editor artifacts
+.DS_Store
+*.swp
+*.swo
+*~
