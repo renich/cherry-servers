@@ -24,3 +24,9 @@ variable "ssh_key_id" {
   type        = string
   default     = ""
 }
+
+variable "spot_instance" {
+  description = "Desplegar como instancia Spot con descuento en precio por hora"
+  type        = bool
+  default     = false
+}

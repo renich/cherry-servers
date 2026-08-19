@@ -10,12 +10,13 @@ resource "cherryservers_ssh_key" "deployer" {
 
 # Paso 2: Aprovisionamos la máquina virtual en la nube con CentOS Stream 10
 resource "cherryservers_server" "luanti_node" {
-  project_id  = var.project_id
-  region      = var.region
-  plan        = var.server_plan
-  image       = "centos_stream_10_64bit"
-  hostname    = var.server_name
-  ssh_key_ids = [cherryservers_ssh_key.deployer.id]
+  project_id    = var.project_id
+  region        = var.region
+  plan          = var.server_plan
+  image         = "centos_stream_10_64bit"
+  hostname      = var.server_name
+  spot_instance = var.spot_instance
+  ssh_key_ids   = [cherryservers_ssh_key.deployer.id]
 
   # Inyectamos el script de arranque codificado en Base64 (requerido por Cherry Servers)
   user_data = base64encode(templatefile("${path.module}/../scripts/bootstrap.bash", {

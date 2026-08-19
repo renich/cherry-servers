@@ -36,3 +36,9 @@ variable "server_name" {
   default     = "0.luanti.linenes.tld"
   description = "FQDN estructurado del servidor (nodo.servicio.entorno.tld)"
 }
+
+variable "spot_instance" {
+  type        = bool
+  default     = false
+  description = "Desplegar como instancia Spot con descuento en precio por hora"
+}
