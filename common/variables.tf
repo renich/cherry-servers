@@ -19,6 +19,12 @@ variable "region" {
   default     = "LT-Siauliai"
 }
 
+variable "server_image" {
+  description = "Slug de la imagen del sistema operativo por defecto en Cherry Servers"
+  type        = string
+  default     = "centos_stream_10_64bit"
+}
+
 variable "ssh_key_id" {
   description = "ID de la clave SSH registrada en el proyecto de Cherry Servers"
   type        = string

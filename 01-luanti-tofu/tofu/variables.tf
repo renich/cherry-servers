@@ -26,6 +26,12 @@ variable "server_plan" {
   description = "Slug del plan de cómputo en Cherry Servers"
 }
 
+variable "server_image" {
+  type        = string
+  default     = "centos_stream_10_64bit"
+  description = "Slug de la imagen del sistema operativo en Cherry Servers (CentOS Stream 10 por defecto)"
+}
+
 variable "ssh_public_key" {
   type        = string
   description = "Tu clave pública SSH para acceder de forma segura sin contraseña"

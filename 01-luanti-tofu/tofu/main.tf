@@ -13,7 +13,7 @@ resource "cherryservers_server" "luanti_node" {
   project_id    = var.project_id
   region        = var.region
   plan          = var.server_plan
-  image         = "centos_stream_10_64bit"
+  image         = var.server_image
   hostname      = var.server_name
   spot_instance = var.spot_instance
   ssh_key_ids   = [cherryservers_ssh_key.deployer.id]

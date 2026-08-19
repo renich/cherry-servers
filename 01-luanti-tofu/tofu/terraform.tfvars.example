@@ -6,4 +6,5 @@ cherry_auth_token = "TU_API_TOKEN_DE_CHERRY_SERVERS"
 project_id        = 123456
 ssh_public_key    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... tu_correo@dominio.com"
 server_name       = "0.luanti.linenes.tld"
+server_image      = "centos_stream_10_64bit"
 spot_instance     = false
