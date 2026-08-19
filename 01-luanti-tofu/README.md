@@ -140,10 +140,20 @@ variable "ssh_public_key" {
 
 variable "server_name" {
   type        = string
-  default     = "LinuxEnEspanol Luanti Community"
-  description = "Nombre público del servidor en Luanti"
+  default     = "0.luanti.linenes.tld"
+  description = "FQDN estructurado del servidor (nodo.servicio.entorno.tld)"
 }
 ```
+
+> **¿Por qué usamos la convención `0.luanti.linenes.tld`?**
+> En ingeniería de confiabilidad de sitios (SRE) e infraestructura profesional, **no usamos nombres de mascotas o arbitrarios** (*"zeus"*, *"thor"*, *"miserver"*). Usamos un esquema jerárquico estructurado tipo FQDN (*Fully Qualified Domain Name*):
+> - `0`: Índice numérico del nodo dentro de una flota basada en índice cero (`0`, `1`, `2`...).
+> - `luanti`: Servicio o carga de trabajo principal.
+> - `linenes`: Identificador del entorno o comunidad (`LinuxEnEspanol`).
+> - `tld`: *Top-Level Domain* (Dominio de Nivel Superior).
+>
+> **¿Qué es un TLD (*Top-Level Domain*)?**
+> Es el nivel más alto en la jerarquía del Sistema de Nombres de Dominio (DNS) de Internet, ubicado inmediatamente después del punto raíz (ej. `.com`, `.org`, `.mx`, o dominios privados de laboratorio como `.internal`, `.lan`, `.local`). En guías técnicas y estándares (siguiendo las recomendaciones de los RFC 2606 y RFC 6761), usamos `.tld` como un marcador de posición estándar para indicar al estudiante que allí colocará su dominio propio o zona raíz local.
 
 ### Aprovisionamiento y Automatización (`main.tf`)
 
@@ -167,11 +177,11 @@ resource "cherryservers_server" "luanti_node" {
   hostname    = "luanti-dedicated"
   ssh_key_ids = [cherryservers_ssh_key.deployer.id]
 
-  # Inyectamos el script de arranque que compilará y configurará Luanti en /srv/luanti
-  user_data = templatefile("${path.module}/scripts/bootstrap.sh", {
+  # Inyectamos el script de arranque codificado en Base64 (requerido por Cherry Servers)
+  user_data = base64encode(templatefile("${path.module}/scripts/bootstrap.sh", {
     SERVER_NAME = var.server_name
     SERVER_PORT = 30000
-  })
+  }))
 
   tags = {
     Environment = "Lab"
@@ -262,9 +272,14 @@ cmake -B build \
 cmake --build build -j"$(nproc)"
 cmake --install build
 
-# 3. Crear usuario de sistema y estructura FHS 3.0 en /srv/luanti
+# 3. Instalar juego base (minetest_game) para el servidor
+mkdir -p /usr/local/share/luanti/games
+cp -r games/minetest_game /usr/local/share/luanti/games/
+
+# 4. Crear usuario de sistema y estructura FHS 3.0 en /srv/luanti
 useradd -r -s /sbin/nologin -d /srv/luanti -m -c "Luanti Dedicated Service" luanti || true
 mkdir -p /srv/luanti/{config,worlds,games,logs}
+cp -r games/minetest_game /srv/luanti/games/
 
 # 4. Configurar el servidor en /srv/luanti/config/luanti.conf
 cat <<CONFIG > /srv/luanti/config/luanti.conf
@@ -329,7 +344,7 @@ Crea tu archivo `terraform.tfvars` con tus credenciales reales:
 cherry_auth_token = "TU_API_TOKEN_AQUI"
 project_id        = 123456
 ssh_public_key    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5... tu_correo@dominio.com"
-server_name       = "LinuxEnEspanol Luanti Community"
+server_name       = "0.luanti.linenes.tld"
 ```
 
 ---

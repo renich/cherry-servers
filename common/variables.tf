@@ -16,7 +16,7 @@ variable "project_id" {
 variable "region" {
   description = "Región de despliegue por defecto (Lituania / región UE para óptima disponibilidad y costo Spot)"
   type        = string
-  default     = "EU-East-1"
+  default     = "LT-Siauliai"
 }
 
 variable "ssh_key_id" {
