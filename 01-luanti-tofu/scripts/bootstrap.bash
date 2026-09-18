@@ -59,7 +59,7 @@ systemctl enable --now minetest@default.service
 # 6. Configurar Firewalld para el puerto UDP del servidor
 echo "[+] Configurando reglas de firewall (UDP ${SERVER_PORT})..."
 systemctl enable --now firewalld
-firewall-cmd --permanent --add-port=${SERVER_PORT}/udp
+firewall-cmd --permanent --add-port="${SERVER_PORT}"/udp
 firewall-cmd --reload
 
 echo "[+] Despliegue completado con éxito. Servidor escuchando en UDP ${SERVER_PORT}."
