@@ -15,7 +15,7 @@ output "server_ip" {
 
 output "connection_string" {
   description = "Dirección para conectar directamente en el cliente de Luanti"
-  value       = "${local.primary_ip}:30000"
+  value       = "${local.primary_ip}:${var.server_port}"
 }
 
 output "ssh_command" {

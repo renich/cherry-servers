@@ -8,3 +8,6 @@ ssh_public_key    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... tu_correo@dominio.c
 server_name       = "0.luanti.linenes.tld"
 server_image      = "centos_stream_10_64bit"
 spot_instance     = false
+# server_port     = 30000 # Puerto UDP por defecto
+# enable_bootstrap = true # Cambiar a false si deseas aprovisionar la máquina vacía para la práctica manual
+

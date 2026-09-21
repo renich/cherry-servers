@@ -33,7 +33,7 @@ chmod 750 /var/lib/minetest
 
 # 4. Configurar el servidor en /etc/minetest/default.conf
 echo "[+] Escribiendo archivo de configuración /etc/minetest/default.conf..."
-cat <<CONFIG > /etc/minetest/default.conf
+cat << EOF > /etc/minetest/default.conf
 name = LinuxEnEspanol-Lab
 server_name = ${SERVER_NAME}
 server_description = Servidor 100% FOSS en CentOS Stream 10 desplegado con OpenTofu y COPR
@@ -45,21 +45,21 @@ creative_mode = false
 server_announce = false
 max_users = 25
 motd = ¡Bienvenido al servidor comunitario de Luanti! Empaquetado en COPR y desplegado con OpenTofu.
-CONFIG
+EOF
 
 chown minetest:minetest /etc/minetest/default.conf
 chmod 640 /etc/minetest/default.conf
 
-# 5. Configurar e iniciar el servicio en Systemd
-echo "[+] Habilitando e iniciando servicio minetest@default.service..."
-restorecon -Rv /var/lib/minetest /etc/minetest /usr/bin/minetestserver || true
-systemctl daemon-reload
-systemctl enable --now minetest@default.service
-
-# 6. Configurar Firewalld para el puerto UDP del servidor
-echo "[+] Configurando reglas de firewall (UDP ${SERVER_PORT})..."
-systemctl enable --now firewalld
+# 5. Configuración estricta de SELinux y Firewalld
+echo "[+] Aplicando contextos de SELinux y abriendo puerto UDP ${SERVER_PORT} en firewalld..."
+restorecon -Rv /var/lib/minetest /etc/minetest /usr/bin/minetestserver
+systemctl --now enable firewalld
 firewall-cmd --permanent --add-port="${SERVER_PORT}"/udp
 firewall-cmd --reload
+
+# 6. Iniciar el servicio en Systemd
+echo "[+] Habilitando e iniciando servicio minetest@default.service..."
+systemctl daemon-reload
+systemctl --now enable minetest@default.service
 
 echo "[+] Despliegue completado con éxito. Servidor escuchando en UDP ${SERVER_PORT}."

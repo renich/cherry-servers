@@ -48,3 +48,16 @@ variable "spot_instance" {
   default     = false
   description = "Desplegar como instancia Spot con descuento en precio por hora"
 }
+
+variable "server_port" {
+  type        = number
+  default     = 30000
+  description = "Puerto de red UDP en el que escuchará el servidor de Luanti"
+}
+
+variable "enable_bootstrap" {
+  type        = bool
+  default     = true
+  description = "Ejecutar el script de bootstrap automáticamente al arrancar (false para laboratorios manuales paso a paso)"
+}
+

@@ -20,7 +20,7 @@ A lo largo de esta secuencia de 10 Cómos prácticos y autosuficientes, explorar
 
 En este **primer Cómo**, aprenderás a poner en marcha tu propio servidor dedicado de **Luanti** (el motor sandbox de bloques 100% libre, antes conocido como *Minetest*).
 
-Siguiendo nuestra filosofía pedagógica **«Manual Primero, Automatización Después»**, primero construiremos y configuraremos el servicio paso a paso directamente en la terminal para entender a fondo la arquitectura del sistema, y al final consolidaremos todo en una receta reproducible con **OpenTofu**.
+Siguiendo nuestra filosofía pedagógica **«Manual Primero, Automatización Después»**, primero construirás y configurarás el servicio paso a paso directamente en tu terminal para entender a fondo la arquitectura del sistema, y al final consolidarás todo en una receta reproducible con **OpenTofu**.
 
 ---
 
@@ -34,7 +34,7 @@ Para realizar este Cómo necesitas:
    ssh-keygen -t ed25519 -C "tu_correo@ejemplo.com"
    ```
 
-1. El cliente de **Luanti** instalado en tu estación de trabajo (asumiendo **Fedora Linux** como sistema de escritorio):
+1. Clientes/herramientas locales en tu estación de trabajo (asumiendo **Fedora Linux** como sistema de escritorio):
 
    ```bash
    sudo dnf -y install minetest
@@ -58,7 +58,7 @@ ssh root@<IP_DEL_SERVIDOR>
 
 > **Crédito al Mantenedor:**
 >
-> Para CentOS Stream 10/EPEL 10, utilizamos el repositorio COPR empaquetado y mantenido por **David Herrera (`dherrera`)**:
+> Para CentOS Stream 10/EPEL 10, este Cómo utiliza el repositorio COPR empaquetado y mantenido por **David Herrera (`dherrera`)**:
 > [`copr.fedorainfracloud.org/coprs/dherrera/minetest`](https://copr.fedorainfracloud.org/coprs/dherrera/minetest/)
 >
 > *(Nota: En Fedora 44, el paquete `minetest-server` ya viene incluido en los repositorios oficiales base sin necesidad de habilitar COPR).*
@@ -125,7 +125,7 @@ El paquete RPM incluye una **unidad de servicio Systemd con plantilla** (`minete
 ```bash
 # Iniciar y habilitar la instancia por defecto
 systemctl daemon-reload
-systemctl enable --now minetest@default.service
+systemctl --now enable minetest@default.service
 ```
 
 Inspecciona el estado del servicio:
@@ -156,7 +156,7 @@ CentOS Stream 10 opera con **SELinux en modo Enforcing**. Aplica los contextos c
 restorecon -Rv /var/lib/minetest /etc/minetest /usr/bin/minetestserver
 
 # Configurar el Firewall para el puerto UDP 30000
-systemctl enable --now firewalld
+systemctl --now enable firewalld
 firewall-cmd --permanent --add-port=30000/udp
 firewall-cmd --reload
 ```
@@ -192,7 +192,7 @@ OpenTofu se encuentra disponible como paquete RPM nativo en los repositorios ofi
 # En Fedora Linux (repositorio oficial):
 sudo dnf -y install opentofu
 
-# En CentOS Stream 10 / RHEL 10 (repositorio EPEL 10):
+# En CentOS Stream 10/RHEL 10 (repositorio EPEL 10):
 sudo dnf -y install epel-release
 sudo dnf -y install opentofu
 
@@ -211,10 +211,10 @@ git checkout 01-luanti-tofu
 cd 01-luanti-tofu/tofu
 ```
 
-Seguimos una arquitectura **plana y lineal** (sin módulos anidados opacos):
+El laboratorio utiliza una arquitectura **plana y lineal** (sin módulos anidados opacos):
 
 * `provider.tf`: Declara el proveedor oficial de Cherry Servers (`cherryservers/cherryservers`).
-* `variables.tf`: Define los parámetros del servidor (`region`, `server_plan`, `server_image`, `spot_instance`) con valores por defecto óptimos.
+* `variables.tf`: Define los parámetros del servidor (`region`, `server_plan`, `server_image`, `spot_instance`, `server_port`, `enable_bootstrap`) con valores por defecto óptimos.
 * `main.tf`: Declara la llave SSH y el recurso de cómputo Cloud VPS inyectando el script de bootstrap.
 * `outputs.tf`: Expone la IP pública y el comando de conexión SSH.
 * `terraform.tfvars.example`: Plantilla de variables para tus credenciales locales.
@@ -242,11 +242,11 @@ resource "cherryservers_server" "luanti_node" {
   spot_instance = var.spot_instance
   ssh_key_ids   = [cherryservers_ssh_key.deployer.id]
 
-  # Inyectamos el script de arranque codificado en Base64 (requerido por Cherry Servers)
-  user_data = base64encode(templatefile("${path.module}/../scripts/bootstrap.bash", {
+  # Inyectamos el script de arranque codificado en Base64 si enable_bootstrap es true
+  user_data = var.enable_bootstrap ? base64encode(templatefile("${path.module}/../scripts/bootstrap.bash", {
     SERVER_NAME = var.server_name
-    SERVER_PORT = 30000
-  }))
+    SERVER_PORT = var.server_port
+  })) : null
 
   tags = {
     Environment = "Lab"
@@ -258,6 +258,9 @@ resource "cherryservers_server" "luanti_node" {
 ```
 
 ### Configurar Variables Locales y Desplegar
+
+> **Aviso de disciplina de costos:**
+> Si realizaste la construcción manual previa en un servidor en la nube en Cherry Servers (o en una VM local), recuerda apagarla o destruirla antes de desplegar este entorno automatizado para evitar costos concurrentes innecesarios.
 
 Copia la plantilla de ejemplo y edítala con tus credenciales de Cherry Servers:
 
