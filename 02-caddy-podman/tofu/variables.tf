@@ -45,8 +45,8 @@ variable "server_name" {
 
 variable "vault_domain" {
   type        = string
-  default     = "secretos.linenes.tld"
-  description = "Nombre de dominio FQDN asignado para el servicio Vaultwarden en Caddy"
+  default     = "auto"
+  description = "Nombre de dominio FQDN para Vaultwarden ('auto' asigna automáticamente <IP>.sslip.io con certificado Let's Encrypt)"
 }
 
 variable "spot_instance" {

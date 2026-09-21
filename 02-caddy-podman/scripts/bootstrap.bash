@@ -22,12 +22,11 @@ dnf -y install epel-release dnf-plugins-core
 /usr/bin/crb enable || true
 dnf -y copr enable @caddy/caddy
 
-# 2. Instalar Caddy, Podman y herramientas auxiliares
-echo "[+] Instalando paquetes RPM: caddy, podman, firewalld, curl y jq..."
-dnf -y install caddy podman firewalld curl jq
+# 2. Instalar Caddy, Podman, utilerías de actualización y herramientas auxiliares
+echo "[+] Instalando paquetes RPM: caddy, podman, firewalld, curl, jq, certbot y dnf-automatic..."
+dnf -y install caddy podman firewalld curl jq certbot dnf-automatic
 
 # 3. Crear estructura de datos persistente bajo FHS 3.0
-echo "[+] Creando estructura de datos en /srv/vaultwarden/data..."
 mkdir -p /srv/vaultwarden/data
 chmod 750 /srv/vaultwarden /srv/vaultwarden/data
 
@@ -60,9 +59,22 @@ echo "[+] Recargando Systemd y arrancando vaultwarden.service..."
 systemctl daemon-reload
 systemctl start vaultwarden.service
 
+# Habilitar actualizaciones automáticas para el contenedor (podman-auto-update)
+systemctl enable --now podman-auto-update.timer
+
+# Configurar e iniciar actualizaciones automáticas del sistema operativo (dnf-automatic)
+sed -i 's/^apply_updates = .*/apply_updates = yes/' /etc/dnf/automatic.conf || true
+systemctl enable --now dnf-automatic.timer
+
 # 6. Configurar Caddyfile con FQDN y proxy inverso
 echo "[+] Generando configuración de Caddy (/etc/caddy/Caddyfile)..."
 mkdir -p /etc/caddy /var/log/caddy
+
+EFFECTIVE_DOMAIN="${VAULT_DOMAIN}"
+if [[ -z "${EFFECTIVE_DOMAIN}" || "${EFFECTIVE_DOMAIN}" == "auto" ]]; then
+  SERVER_IP=$(curl -s4 https://icanhazip.com || ip -4 addr show scope global | awk '/inet /{print $2}' | cut -d/ -f1 | head -n1)
+  EFFECTIVE_DOMAIN="${SERVER_IP}.sslip.io"
+fi
 
 cat << EOF > /etc/caddy/Caddyfile
 # =============================================================================
@@ -73,7 +85,7 @@ cat << EOF > /etc/caddy/Caddyfile
     admin off
 }
 
-${VAULT_DOMAIN} {
+${EFFECTIVE_DOMAIN} {
     ${TLS_DIRECTIVE}
 
     # Proxy inverso al contenedor local en loopback
@@ -112,4 +124,4 @@ firewall-cmd --permanent --add-service=http
 firewall-cmd --permanent --add-service=https
 firewall-cmd --reload
 
-echo "[+] Despliegue completado con éxito. Vaultwarden disponible bajo https://${VAULT_DOMAIN}"
+echo "[+] Despliegue completado con éxito. Vaultwarden disponible bajo https://${EFFECTIVE_DOMAIN}"
