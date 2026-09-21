@@ -288,7 +288,7 @@ ss -tlpn | grep -E ':(80|443)'
 
 ### Paso G: Verificación y Conexión desde el Cliente
 
-Para verificar el servicio desde tu estación de trabajo (asumiendo que tu servidor tiene la IP `84.32.149.15`):
+Para verificar el servicio desde tu estación de trabajo (sustituyendo `<IP_DEL_SERVIDOR>` por la dirección IP pública asignada a tu servidor, por ejemplo `84.32.149.15`):
 
 1. **Comprobación directa con curl (Validación estricta de TLS):**
 
@@ -382,6 +382,36 @@ Nuestra estructura de archivos sigue un diseño plano y transparente:
 * `outputs.tf`: Muestra la IP pública, la URL con HTTPS de Let's Encrypt y el comando SSH.
 * `terraform.tfvars.example`: Plantilla de variables para tus credenciales.
 
+### El Script de Arranque Declarativo (`scripts/bootstrap.bash`)
+
+OpenTofu inyecta automáticamente el script [`scripts/bootstrap.bash`](file:///home/renich/Projects/cherry-servers/02-caddy-podman/scripts/bootstrap.bash) dentro de `user_data` en Cherry Servers:
+
+```hcl
+resource "cherryservers_server" "caddy_node" {
+  project_id    = var.project_id
+  region        = var.region
+  plan          = var.server_plan
+  image         = var.server_image
+  hostname      = var.server_name
+  spot_instance = var.spot_instance
+  ssh_key_ids   = [cherryservers_ssh_key.deployer.id]
+
+  # Inyectamos el script de arranque codificado en Base64 (requerido por Cherry Servers) si enable_bootstrap es true
+  user_data = var.enable_bootstrap ? base64encode(templatefile("${path.module}/../scripts/bootstrap.bash", {
+    SERVER_NAME   = var.server_name
+    VAULT_DOMAIN  = var.vault_domain
+    TLS_DIRECTIVE = local.tls_directive
+  })) : null
+
+  tags = {
+    Environment = "Lab"
+    ManagedBy   = "OpenTofu"
+    Series      = "Comos-Linux-FOSS"
+    Service     = "Caddy-Vaultwarden"
+  }
+}
+```
+
 ### Configurar Variables Locales y Desplegar (`tofu apply`)
 
 Copia la plantilla de variables:
@@ -393,12 +423,11 @@ cp terraform.tfvars.example terraform.tfvars
 Edita `terraform.tfvars` con tu token y clave SSH:
 
 ```hcl
-cherry_auth_token = "TU_API_TOKEN_AQUI"
+cherry_auth_token = "TU_API_TOKEN_DE_CHERRY_SERVERS"
 project_id        = 123456
-ssh_public_key    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5... tu_correo@ejemplo.com"
+ssh_public_key    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... tu_correo@dominio.com"
 server_name       = "0.caddy.linenes.tld"
-vault_domain      = "auto"
-server_plan       = "Cloud VPS 1"
+vault_domain      = "auto" # "auto" asigna <IP>.sslip.io con TLS de Let's Encrypt sin tocar DNS, o pon tu dominio propio
 server_image      = "centos_stream_10_64bit"
 spot_instance     = false
 ```

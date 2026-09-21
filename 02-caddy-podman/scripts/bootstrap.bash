@@ -113,15 +113,15 @@ setsebool -P httpd_can_network_connect 1
 # Restaurar etiquetas de contexto en FHS y configuraciones
 restorecon -Rv /srv/vaultwarden /etc/caddy /var/log/caddy || true
 
-# 8. Arrancar e iniciar el servicio Caddy
-echo "[+] Habilitando e iniciando servicio caddy.service..."
-systemctl enable --now caddy.service
-
-# 9. Configuración de Firewalld para HTTP (80/tcp) y HTTPS (443/tcp)
+# 8. Configuración de Firewalld para HTTP (80/tcp) y HTTPS (443/tcp)
 echo "[+] Configurando reglas de firewall (HTTP y HTTPS)..."
 systemctl enable --now firewalld
 firewall-cmd --permanent --add-service=http
 firewall-cmd --permanent --add-service=https
 firewall-cmd --reload
+
+# 9. Arrancar e iniciar el servicio Caddy
+echo "[+] Habilitando e iniciando servicio caddy.service..."
+systemctl enable --now caddy.service
 
 echo "[+] Despliegue completado con éxito. Vaultwarden disponible bajo https://${EFFECTIVE_DOMAIN}"
