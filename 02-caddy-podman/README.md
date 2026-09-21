@@ -135,12 +135,16 @@ chmod 644 /etc/containers/systemd/vaultwarden.container
 Ahora recarga el generador de Systemd e inicia el servicio:
 
 ```bash
-# Recargar Systemd para que Quadlet genere el servicio dinámico vaultwarden.service
+# Recargar Systemd para que el generador Quadlet cree la unidad dinámica
 systemctl daemon-reload
 
-# Habilitar e iniciar Vaultwarden
-systemctl enable --now vaultwarden.service
+# Iniciar el servicio generado por Quadlet
+systemctl start vaultwarden.service
 ```
+
+> **Nota técnica sobre unidades generadas por Quadlet:**
+>
+> Los archivos `.container` de Quadlet que incluyen la sección `[Install]` son habilitados automáticamente por el generador de Systemd en `/run/systemd/generator/` tras cada `systemctl daemon-reload` o arranque del sistema. Por ello, no se requiere ejecutar `systemctl enable` (el cual emitiría una advertencia de que la unidad es generada/transitoria); basta con invocar `systemctl start vaultwarden.service`.
 
 Verifica el estado del servicio:
 
@@ -198,6 +202,7 @@ EOF
 
 chown -R caddy:caddy /etc/caddy /var/log/caddy
 chmod 640 /etc/caddy/Caddyfile
+restorecon -Rv /var/log/caddy /etc/caddy
 ```
 
 > **Diferencia entre dominios de laboratorio y dominios públicos:**
@@ -207,13 +212,13 @@ chmod 640 /etc/caddy/Caddyfile
 
 ### Paso F: SELinux a Fondo (Modo Enforcing, AVCs y Firewall)
 
-CentOS Stream 10 opera con **SELinux en modo Enforcing**. Si intentas iniciar Caddy en este punto sin ajustar las políticas de SELinux, te toparás con un error **502 Bad Gateway**.
+CentOS Stream 10 opera con **SELinux en modo Enforcing**. Si intentas iniciar un proxy inverso hacia un backend local sin verificar las políticas de SELinux, te toparás con un error **502 Bad Gateway**.
 
 #### 1. Diagnóstico del bloqueo de SELinux (El por qué)
 
 El binario de Caddy corre bajo el dominio de SELinux `httpd_t`. Por razones de seguridad, la política predeterminada de SELinux en sistemas basados en Red Hat **prohíbe** que un servidor web inicie conexiones TCP salientes hacia otros puertos de red (`name_connect`).
 
-Si Caddy intentara conectarse a `127.0.0.1:8080`, el kernel registraría una denegación AVC en `/var/log/audit/audit.log` similar a esta:
+Si Caddy intentara conectarse a `127.0.0.1:8080` sin autorización, el kernel registraría una denegación AVC en los registros de auditoría similar a esta:
 
 ```text
 type=AVC msg=audit(1724021234.567:123): avc:  denied  { name_connect } for  pid=12345 comm="caddy" dest=8080 scontext=system_u:system_r:httpd_t:s0 tcontext=system_u:object_r:http_cache_port_t:s0 tclass=tcp_socket permissive=0
@@ -221,12 +226,14 @@ type=AVC msg=audit(1724021234.567:123): avc:  denied  { name_connect } for  pid=
 
 #### 2. Solución canónica mediante booleanos de SELinux
 
-En lugar de relajar SELinux o desactivarlo (lo cual está terminantemente desaconsejado en entornos de producción), habilitamos el booleano oficial del sistema diseñado para proxies inversos:
+En lugar de relajar SELinux o desactivarlo (lo cual está terminantemente desaconsejado en entornos de producción), verificamos y habilitamos el booleano oficial del sistema diseñado para servidores web y proxies inversos:
 
 ```bash
 # Permitir permanentemente (-P) que el servidor web se conecte por red a backends locales
 setsebool -P httpd_can_network_connect 1
 ```
+
+*(Nota: Aunque el scriptlet RPM de Caddy en COPR activa este booleano durante su instalación, conocerlo y verificarlo con `getsebool httpd_can_network_connect` es una habilidad fundamental de SRE para diagnosticar fallas en cualquier proxy como Nginx, Apache o Envoy).*
 
 #### 3. Etiquetado de volúmenes de contenedor (`:Z`)
 
@@ -270,13 +277,12 @@ systemctl enable --now caddy.service
 Comprueba los sockets de red activos en el servidor:
 
 ```bash
-ss -tlpn | grep -E ':(80|443|8080)'
+ss -tlpn | grep -E ':(80|443)'
 ```
 
-Comprobarás que:
-
-* Caddy escucha públicamente en `0.0.0.0:80` y `0.0.0.0:443`.
-* Vaultwarden escucha **únicamente en `127.0.0.1:8080`**.
+> **¿Por qué el puerto 8080 no aparece en `ss -tlpn`?**
+>
+> En versiones modernas de Podman sobre CentOS Stream y Fedora, la pila de red predeterminada es **Netavark**. En lugar de mantener un proceso de proxy en espacio de usuario escuchando en el socket (como ocurría antiguamente en Docker), Netavark gestiona la redirección de puertos directamente en el kernel mediante reglas DNAT de **nftables**. Puedes comprobar que el puerto está publicado inspeccionando el contenedor con `podman ps` y verificando la respuesta HTTP en loopback con `curl -I http://127.0.0.1:8080/`.
 
 ### Paso G: Verificación y Conexión desde el Cliente
 

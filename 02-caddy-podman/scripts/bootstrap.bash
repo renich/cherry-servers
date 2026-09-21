@@ -58,7 +58,7 @@ chmod 644 /etc/containers/systemd/vaultwarden.container
 # 5. Cargar generador Quadlet y arrancar el servicio en Systemd
 echo "[+] Recargando Systemd y arrancando vaultwarden.service..."
 systemctl daemon-reload
-systemctl enable --now vaultwarden.service
+systemctl start vaultwarden.service
 
 # 6. Configurar Caddyfile con FQDN y proxy inverso
 echo "[+] Generando configuración de Caddy (/etc/caddy/Caddyfile)..."

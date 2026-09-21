@@ -24,12 +24,12 @@ resource "cherryservers_server" "caddy_node" {
   spot_instance = var.spot_instance
   ssh_key_ids   = [cherryservers_ssh_key.deployer.id]
 
-  # Inyectamos el script de arranque codificado en Base64 (requerido por Cherry Servers)
-  user_data = base64encode(templatefile("${path.module}/../scripts/bootstrap.bash", {
+  # Inyectamos el script de arranque codificado en Base64 (requerido por Cherry Servers) si enable_bootstrap es true
+  user_data = var.enable_bootstrap ? base64encode(templatefile("${path.module}/../scripts/bootstrap.bash", {
     SERVER_NAME   = var.server_name
     VAULT_DOMAIN  = var.vault_domain
     TLS_DIRECTIVE = local.tls_directive
-  }))
+  })) : null
 
   # Etiquetas de metadatos para organizar los recursos en tu cuenta
   tags = {

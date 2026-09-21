@@ -54,3 +54,9 @@ variable "spot_instance" {
   default     = false
   description = "Desplegar como instancia Spot con descuento en precio por hora"
 }
+
+variable "enable_bootstrap" {
+  type        = bool
+  default     = true
+  description = "Ejecutar el script de bootstrap automáticamente al arrancar (false para laboratorios manuales paso a paso)"
+}
