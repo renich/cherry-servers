@@ -484,21 +484,19 @@ El costo total de haber ejecutado este laboratorio completo ronda entre **~$0.02
 
 Para consolidar tu dominio sobre proxies inversos, contenedores y SELinux, te invito a resolver estos 3 desafíos prácticos:
 
-1. **Reto 1: Deshabilitar registros públicos y habilitar token de administración**
-   * Una vez creada tu cuenta de usuario principal, un gestor de contraseñas en internet no debe permitir que cualquier desconocido cree cuentas nuevas.
-   * Modifica el archivo Quadlet de Vaultwarden (`/etc/containers/systemd/vaultwarden.container`) para establecer `SIGNUPS_ALLOWED=false` y configurar una variable `ADMIN_TOKEN` con una cadena criptográfica generada mediante `openssl rand -base64 32`.
-   * Recarga Systemd (`systemctl daemon-reload` y reinicia el servicio). Comprueba que el formulario de registro web rechace nuevos usuarios, pero que puedas acceder a la consola administrativa en `https://<TU_DOMINIO>/admin`.
+1. **Reto 1: Blindar Vaultwarden deshabilitando registros y activando el panel de administración**
+   * Una vez creada tu cuenta de usuario principal, un gestor de contraseñas publicado en internet no debe permitir registros abiertos al público.
+   * Modifica el archivo Quadlet de Vaultwarden (`/etc/containers/systemd/vaultwarden.container`) para establecer la variable de entorno `SIGNUPS_ALLOWED=false` y agrega `ADMIN_TOKEN` con una cadena criptográfica generada mediante `openssl rand -base64 32`.
+   * Recarga Systemd (`systemctl daemon-reload` y reinicia el servicio con `systemctl restart vaultwarden.service`). Comprueba que el formulario web de registro rechace nuevas cuentas, pero que puedas acceder a la consola administrativa en `https://<TU_IP>.sslip.io/admin` introduciendo tu token.
 
-1. **Reto 2: Respaldo en caliente de SQLite mediante Systemd Timers**
-   * Vaultwarden utiliza SQLite por defecto en `/srv/vaultwarden/data/db.sqlite3`. Copiar un archivo SQLite en caliente con `cp` puede corromper la base de datos si ocurre durante una transacción.
-   * Diseña una unidad de servicio `vaultwarden-backup.service` y un temporizador `vaultwarden-backup.timer` en `/etc/systemd/system/` que invoque periódicamente el comando seguro de respaldo en línea:
-     `sqlite3 /srv/vaultwarden/data/db.sqlite3 ".backup '/srv/vaultwarden/backups/db-$(date +%F).sqlite3'"`
-   * Asegúrate de crear el directorio de destino bajo FHS 3.0 con los permisos adecuados y programa el temporizador para ejecutarse todas las noches.
+1. **Reto 2: Publicar un segundo servicio virtual con Caddy y `sslip.io` (Multi-sitio/SNI)**
+   * Pon a prueba el poder del *Virtual Hosting*: despliega un segundo contenedor mediante Podman Quadlet (por ejemplo, una página informativa con `docker.io/library/httpd:alpine`) escuchando internamente en loopback en el puerto `127.0.0.1:8081`.
+   * Edita `/etc/caddy/Caddyfile` para agregar un segundo bloque de servidor bajo el subdominio `web.<TU_IP>.sslip.io` apuntando al nuevo puerto.
+   * Recarga Caddy (`systemctl reload caddy.service`). Comprueba que Caddy solicite y obtenga un segundo certificado TLS independiente de Let's Encrypt y verifica desde tu navegador que ambos servicios coexistan en el mismo servidor en los puertos 80 y 443 sin interferencias.
 
-1. **Reto 3: Migrar Caddy a un contenedor Podman con red compartida interna**
-   * En este Cómo instalamos Caddy como RPM nativo y Vaultwarden en Podman. Modifica la arquitectura para ejecutar **ambos servicios dentro de Podman** declarados como dos Quadlets (`caddy.container` y `vaultwarden.container`).
-   * Crea un archivo de red interna declarativa de Quadlet (`vaultwarden.network`) de modo que Caddy y Vaultwarden se comuniquen a través del resolver DNS interno de Podman por el nombre del contenedor (ej. `reverse_proxy vaultwarden:80`) sin publicar puertos en `127.0.0.1`.
-   * Analiza cómo cambian los requerimientos de puertos en el host y las directivas de SELinux.
+1. **Reto 3: Portar la configuración manual a Debian 13 o Ubuntu 26.04 LTS**
+   * Despliega una máquina virtual o servidor con **Debian 13** o la versión LTS actual de **Ubuntu (Ubuntu 26.04 LTS)** y reproduce la instalación y puesta en marcha manual de Caddy y Podman Quadlet.
+   * Identifica y documenta las diferencias arquitectónicas frente a CentOS Stream: la ausencia de SELinux (sustituido por AppArmor, donde no aplican las banderas `:Z` ni el booleano `httpd_can_network_connect`), las rutas de configuración y las fuentes de repositorios APT para Caddy.
 
 ---
 
