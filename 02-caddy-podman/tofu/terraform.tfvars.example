@@ -9,3 +9,6 @@ server_name       = "0.caddy.linenes.tld"
 vault_domain      = "auto" # "auto" asigna <IP>.sslip.io con TLS de Let's Encrypt sin tocar DNS, o pon tu dominio propio
 server_image      = "centos_stream_10_64bit"
 spot_instance     = false
+# server_plan     = "B1-1-1gb-20s-shared" # Cloud VPS 1 por defecto (~$0.015 EUR/hr) o "B2-2-2gb-40s-shared" (Cloud VPS 2)
+# enable_bootstrap = true # Cambiar a false si deseas aprovisionar la máquina vacía para la práctica manual
+

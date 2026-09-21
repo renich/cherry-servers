@@ -20,19 +20,22 @@ En entornos reales de producción y laboratorios hogareños (*homelabs*), expone
 
 En este laboratorio aprenderás a desplegar **Vaultwarden** (la implementación ligera, eficiente y 100% libre escrita en Rust del backend de Bitwarden) gestionada por **Podman Quadlets** en **Systemd**, protegida por **SELinux en modo Enforcing** y publicada a través del servidor web **Caddy** instalado como paquete RPM nativo.
 
-Para garantizar una experiencia de aprendizaje idéntica a producción, utilizaremos dominios públicos basados en **`sslip.io`**. Esto permite que Caddy obtenga **certificados SSL/TLS auténticos y válidos emitidos por Let's Encrypt de forma automática**, sin necesidad de comprar un dominio, sin modificar archivos `/etc/hosts` y **sin aceptar excepciones o advertencias de seguridad en tu navegador**.
+Para garantizar una experiencia de aprendizaje idéntica a producción, utilizarás dominios públicos basados en **`sslip.io`**. Esto permite que Caddy obtenga **certificados SSL/TLS auténticos y válidos emitidos por Let's Encrypt de forma automática**, sin necesidad de comprar un dominio, sin modificar archivos `/etc/hosts` y **sin aceptar excepciones o advertencias de seguridad en tu navegador**.
 
-Fieles a nuestra filosofía **«Manual Primero, Automatización Después»**, primero realizaremos todo el despliegue a mano en la terminal mediante SSH, entendiendo cada directiva, contexto de SELinux y regla de firewall. Posteriormente, empaquetaremos la solución completa en un despliegue declarativo e instantáneo con **OpenTofu**.
+Fieles a nuestra filosofía **«Manual Primero, Automatización Después»**, primero realizarás todo el despliegue a mano en la terminal mediante SSH, entendiendo cada directiva, contexto de SELinux y regla de firewall. Posteriormente, empaquetarás la solución completa en un despliegue declarativo e instantáneo con **OpenTofu**.
 
 ---
 
 ## 1. Prerrequisitos del Laboratorio
 
-1. Un servidor con **CentOS Stream 10** en la nube (o máquina virtual local con IP pública) con acceso SSH como `root` mediante clave pública Ed25519 (`~/.ssh/id_ed25519.pub`). Si aún no tienes un par de llaves:
+1. Un servidor con **CentOS Stream 10** en la nube con IP pública accesible (o máquina virtual local con IP pública) con acceso SSH como `root` mediante clave pública Ed25519 (`~/.ssh/id_ed25519.pub`). Si aún no tienes un par de llaves:
 
    ```bash
    ssh-keygen -t ed25519 -C "tu_correo@ejemplo.com"
    ```
+
+   > **Nota sobre máquinas virtuales locales (NAT):**
+   > Los desafíos ACME HTTP-01 de Let's Encrypt requieren una dirección IP pública enrutable en internet para validar el dominio y emitir el certificado TLS. Si practicas en una máquina virtual local detrás de NAT o en un rango privado RFC 1918 (ej. `192.168.x.x`), Caddy no podrá obtener un certificado de Let's Encrypt. Para entornos puramente locales, puedes utilizar la directiva `tls internal` en el Caddyfile para que Caddy actúe como su propia entidad certificadora (CA) local.
 
 1. Clientes y herramientas en tu estación de trabajo (**Fedora Linux**):
 
@@ -58,7 +61,7 @@ ssh root@<IP_DEL_SERVIDOR>
 
 ### Paso A: Arquitectura de la Solución (Caddy RPM, Podman Quadlets y FQDN)
 
-Nuestra arquitectura divide responsabilidades de forma limpia y robusta:
+La arquitectura divide responsabilidades de forma limpia y robusta:
 
 1. **Caddy en el Host (RPM):** Se ejecuta directamente en el sistema operativo base. Tiene acceso directo a los puertos privilegiados `80/tcp` y `443/tcp`, resuelve el desafío ACME HTTP-01 con Let's Encrypt y reenvía el tráfico internamente.
 1. **Vaultwarden en Podman Quadlet:** En lugar de depender de un demonio monolítico en segundo plano (como Docker), Podman Quadlet traduce archivos de definición declarativos (`.container`) en unidades nativas de **Systemd**. El contenedor se inicia, monitorea y reinicia como cualquier otro servicio del sistema operativo, registrando su salida directamente en `journald`.
@@ -78,7 +81,7 @@ dnf -y install epel-release dnf-plugins-core
 dnf -y copr enable @caddy/caddy
 
 # 3. Instalar Caddy, Podman, utilerías de actualización y herramientas de diagnóstico
-dnf -y install caddy podman firewalld curl jq certbot dnf-automatic
+dnf -y install caddy podman firewalld curl jq dnf-automatic
 ```
 
 > **¿Por qué el repositorio COPR `@caddy/caddy`?**
@@ -87,7 +90,7 @@ dnf -y install caddy podman firewalld curl jq certbot dnf-automatic
 
 ### Paso C: Estructura de Datos y Permisos bajo FHS 3.0
 
-Bajo el estándar **FHS 3.0** (*Filesystem Hierarchy Standard*), los datos de servicios específicos del sitio deben residir en `/srv/<servicio>`. Crearemos el directorio para la base de datos SQLite y adjuntos de Vaultwarden:
+Bajo el estándar **FHS 3.0** (*Filesystem Hierarchy Standard*), los datos de servicios específicos del sitio deben residir en `/srv/<servicio>`. Crea el directorio persistente para la base de datos SQLite y adjuntos de Vaultwarden:
 
 ```bash
 # Crear estructura de datos persistente
@@ -118,7 +121,6 @@ ContainerName=vaultwarden
 PublishPort=127.0.0.1:8080:80
 Volume=/srv/vaultwarden/data:/data:Z
 Environment=SIGNUPS_ALLOWED=true
-Environment=WEBSOCKET_ENABLED=true
 AutoUpdate=registry
 
 [Install]
@@ -147,6 +149,8 @@ systemctl start vaultwarden.service
 > **Nota técnica sobre unidades generadas por Quadlet:**
 >
 > Los archivos `.container` de Quadlet que incluyen la sección `[Install]` son habilitados automáticamente por el generador de Systemd en `/run/systemd/generator/` tras cada `systemctl daemon-reload` o arranque del sistema. Por ello, no se requiere ejecutar `systemctl enable` (el cual emitiría una advertencia de que la unidad es generada/transitoria); basta con invocar `systemctl start vaultwarden.service`.
+>
+> **Consejo de inspección en Systemd:** Puedes ejecutar `systemctl cat vaultwarden.service` para ver cómo el generador tradujo tu archivo `.container` a una unidad de servicio nativa de Systemd en `/run/systemd/generator/vaultwarden.service`.
 
 Verifica el estado del servicio:
 
@@ -173,7 +177,7 @@ Recibirás un encabezado HTTP `200 OK` generado por el servidor Rust de Vaultwar
 
 ### Paso E: Configuración del Proxy Inverso en Caddy (`/etc/caddy/Caddyfile`)
 
-Determinamos la IP pública del servidor y construimos el nombre de dominio público con `sslip.io`:
+Determina la dirección IP pública del servidor y construye el nombre de dominio público con `sslip.io`:
 
 ```bash
 # Obtener la IP pública del servidor
@@ -182,8 +186,8 @@ VAULT_DOMAIN="${SERVER_IP}.sslip.io"
 
 echo "Configurando Caddy para el dominio público: ${VAULT_DOMAIN}"
 
-# Crear directorio de registros
-mkdir -p /var/log/caddy
+# Crear directorios de configuración y registros
+mkdir -p /etc/caddy /var/log/caddy
 
 cat << EOF > /etc/caddy/Caddyfile
 {
@@ -191,12 +195,8 @@ cat << EOF > /etc/caddy/Caddyfile
 }
 
 ${VAULT_DOMAIN} {
-    # Proxy inverso al socket local de Vaultwarden
-    reverse_proxy 127.0.0.1:8080 {
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
+    # Proxy inverso al contenedor local en loopback (Caddy gestiona X-Forwarded-* automáticamente)
+    reverse_proxy 127.0.0.1:8080
 
     log {
         output file /var/log/caddy/vaultwarden.access.log
@@ -207,8 +207,12 @@ EOF
 
 chown -R caddy:caddy /etc/caddy /var/log/caddy
 chmod 640 /etc/caddy/Caddyfile
-restorecon -Rv /var/log/caddy /etc/caddy
+restorecon -Rv /etc/caddy /var/log/caddy
 ```
+
+> **¿Por qué no ejecutamos `restorecon` en `/srv/vaultwarden`?**
+>
+> La bandera `:Z` de Podman Quadlet aplica etiquetas privadas de SELinux (`container_file_t`) con categorías MCS exclusivas (`s0:cXXX,cYYY`) sobre `/srv/vaultwarden/data`. Ejecutar `restorecon` sobre `/srv/` restablecería el contexto al genérico de la política del sistema (`var_t`), destruyendo la confinación del contenedor y bloqueando el acceso de Vaultwarden a su base de datos SQLite.
 
 Al utilizar `${SERVER_IP}.sslip.io`, Caddy contactará a **Let's Encrypt** automáticamente al arrancar. Let's Encrypt validará que el dominio resuelve a tu IP pública y expedirá un certificado TLS de confianza pública de inmediato.
 
@@ -228,7 +232,7 @@ type=AVC msg=audit(1724021234.567:123): avc:  denied  { name_connect } for  pid=
 
 #### 2. Solución canónica mediante booleanos de SELinux
 
-En lugar de relajar SELinux o desactivarlo (lo cual está terminantemente desaconsejado en entornos de producción), verificamos y habilitamos el booleano oficial del sistema diseñado para servidores web y proxies inversos:
+En lugar de relajar SELinux o desactivarlo (lo cual está terminantemente desaconsejado en entornos de producción), este laboratorio verifica y habilita el booleano oficial del sistema diseñado para servidores web y proxies inversos:
 
 ```bash
 # Permitir permanentemente (-P) que el servidor web se conecte por red a backends locales
@@ -246,7 +250,7 @@ Al haber especificado `Volume=/srv/vaultwarden/data:/data:Z` en el archivo Quadl
 * `:Z` indica a Podman que etiquete automáticamente el directorio con el contexto `container_file_t`.
 * Asigna categorías MCS (*Multi-Category Security*) aleatorias y exclusivas (por ejemplo, `s0:c662,c731`) que aíslan los archivos de esta instancia frente a cualquier otro contenedor en el sistema.
 
-Verifiquemos el contexto resultante en el sistema de archivos:
+Verifica el contexto resultante en el sistema de archivos:
 
 ```bash
 ls -Zd /srv/vaultwarden/data
@@ -263,7 +267,7 @@ system_u:object_r:container_file_t:s0:c662,c731 /srv/vaultwarden/data
 Habilita los servicios estándar de tráfico web en `firewalld`:
 
 ```bash
-systemctl enable --now firewalld
+systemctl --now enable firewalld
 firewall-cmd --permanent --add-service=http
 firewall-cmd --permanent --add-service=https
 firewall-cmd --reload
@@ -273,7 +277,7 @@ Inicia y habilita el servicio de Caddy:
 
 ```bash
 systemctl daemon-reload
-systemctl enable --now caddy.service
+systemctl --now enable caddy.service
 ```
 
 Comprueba que Caddy esté escuchando en los puertos privilegiados:
@@ -308,13 +312,11 @@ Para verificar el servicio desde tu estación de trabajo (sustituyendo `<IP_DEL_
    * Inicia sesión en el baúl web de contraseñas.
    * ¡Tu gestor de contraseñas privado y cifrado de punto a punto está completamente operativo!
 
----
-
-## 3. Mantenimiento Continuo: Actualizaciones del Sistema y del Contenedor
+### Paso H: Mantenimiento Continuo (Actualizaciones Automáticas del Sistema y del Contenedor)
 
 Un servidor en producción requiere mecanismos confiables para aplicar parches de seguridad de forma predecible y automática.
 
-### A. Actualizaciones del Sistema Operativo con `dnf-automatic`
+#### 1. Actualizaciones del Sistema Operativo con `dnf-automatic`
 
 Para mantener CentOS Stream 10 protegido contra vulnerabilidades del kernel y paquetes base sin intervención manual:
 
@@ -327,19 +329,19 @@ Para mantener CentOS Stream 10 protegido contra vulnerabilidades del kernel y pa
 1. Habilita el temporizador de Systemd:
 
    ```bash
-   systemctl enable --now dnf-automatic.timer
+   systemctl --now enable dnf-automatic.timer
    ```
 
 Systemd ejecutará la verificación e instalación diaria de paquetes RPM, asegurando que parches de seguridad críticos se instalen puntualmente.
 
-### B. Actualizaciones Automáticas del Contenedor con Podman Quadlet
+#### 2. Actualizaciones Automáticas del Contenedor con Podman Quadlet
 
 Gracias a la directiva `AutoUpdate=registry` configurada en el archivo Quadlet (`vaultwarden.container`), Podman cuenta con un mecanismo nativo de actualización continua integrado con Systemd:
 
 1. **Habilitar el temporizador de actualización de Podman:**
 
    ```bash
-   systemctl enable --now podman-auto-update.timer
+   systemctl --now enable podman-auto-update.timer
    ```
 
    Este temporizador de Systemd se ejecuta diariamente. Inspecciona los contenedores en ejecución, consulta el registro upstream (`docker.io`) y, si detecta un nuevo digest de la imagen, descarga la capa actualizada y reinicia el servicio `vaultwarden.service` automáticamente. Si el contenedor falla tras la actualización, Podman realiza un rollback automático a la versión anterior.
@@ -355,14 +357,17 @@ Gracias a la directiva `AutoUpdate=registry` configurada en el archivo Quadlet (
    Tras sucesivas actualizaciones, elimina imágenes intermedias huérfanas con:
 
    ```bash
-   podman image prune -f
+   podman image prune --force
    ```
 
 ---
 
-## 4. Automatización Declarativa con OpenTofu (Infraestructura como Código)
+## 3. Automatización Declarativa con OpenTofu (Infraestructura como Código)
 
-Ahora que comprendes con precisión matemática qué hace cada archivo, servicio y política de SELinux, automatizaremos todo el proceso utilizando **OpenTofu** y la API de **Cherry Servers**.
+Ahora que comprendes con precisión matemática qué hace cada archivo, servicio y política de SELinux, automatizarás todo el proceso utilizando **OpenTofu** y la API de **Cherry Servers**.
+
+> **Aviso de disciplina de costos:**
+> Si realizaste la construcción manual previa en un servidor en la nube en Cherry Servers (o en una VM local), recuerda apagarla o destruirla antes de desplegar este entorno automatizado para evitar costos concurrentes innecesarios.
 
 ### Clonar el Repositorio y Explorar Manifiestos
 
@@ -374,10 +379,10 @@ git checkout 02-caddy-podman
 cd 02-caddy-podman/tofu
 ```
 
-Nuestra estructura de archivos sigue un diseño plano y transparente:
+El laboratorio utiliza una arquitectura **plana y transparente** (sin módulos anidados opacos):
 
 * `provider.tf`: Define los requerimientos del proveedor `cherryservers/cherryservers` (`~> 1.5.3`).
-* `variables.tf`: Declara las variables del despliegue, con `vault_domain = "auto"` para auto-generar `<IP>.sslip.io` con Let's Encrypt.
+* `variables.tf`: Declara las variables del despliegue (`server_plan`, `server_image`, `vault_domain`, `enable_bootstrap`), con `vault_domain = "auto"` para auto-generar `<IP>.sslip.io` con Let's Encrypt.
 * `main.tf`: Configura la clave SSH, aprovisiona la instancia Cloud VPS e inyecta dinámicamente el script [`scripts/bootstrap.bash`](file:///home/renich/Projects/cherry-servers/02-caddy-podman/scripts/bootstrap.bash).
 * `outputs.tf`: Muestra la IP pública, la URL con HTTPS de Let's Encrypt y el comando SSH.
 * `terraform.tfvars.example`: Plantilla de variables para tus credenciales.
@@ -430,6 +435,8 @@ server_name       = "0.caddy.linenes.tld"
 vault_domain      = "auto" # "auto" asigna <IP>.sslip.io con TLS de Let's Encrypt sin tocar DNS, o pon tu dominio propio
 server_image      = "centos_stream_10_64bit"
 spot_instance     = false
+# server_plan     = "B1-1-1gb-20s-shared" # Cloud VPS 1 por defecto (~$0.015 EUR/hr) o "B2-2-2gb-40s-shared" (Cloud VPS 2)
+# enable_bootstrap = true # Cambiar a false si deseas aprovisionar la máquina vacía para la práctica manual
 ```
 
 Inicializa y despliega la infraestructura:
@@ -457,39 +464,9 @@ Haz clic en la URL `vaultwarden_url` en tu terminal y accederás directamente a 
 
 ---
 
-## 5. Destrucción del Servidor, Higiene Criptográfica y Control de Costos
+## 4. Destrucción del Servidor y Control de Costos
 
-Una vez concluida tu práctica o si deseas apagar el laboratorio para evitar consumos residuales, sigue estos pasos de buena higiene operativa.
-
-### Higiene Criptográfica: Revocar el Certificado TLS ante Let's Encrypt
-
-En infraestructuras en la nube efímeras, cuando destruyes una máquina virtual, su dirección IP pública vuelve al grupo común (*pool*) del proveedor y eventualmente será asignada a otro cliente. Por higiene criptográfica y responsabilidad de seguridad, es una buena práctica revocar el certificado emitido para esa dirección IP antes de descartar el servidor:
-
-Conéctate por SSH a tu servidor y revoca el certificado utilizando `certbot` y las llaves almacenadas por Caddy:
-
-```bash
-SERVER_IP=$(curl -s4 https://icanhazip.com)
-DOMAIN="${SERVER_IP}.sslip.io"
-
-certbot revoke \
-  --cert-path "/var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory/${DOMAIN}/${DOMAIN}.crt" \
-  --key-path "/var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory/${DOMAIN}/${DOMAIN}.key" \
-  --reason cessationOfOperation \
-  --no-delete-after-revoke \
-  --non-interactive
-```
-
-Elimina las copias locales de llaves y certificados en Caddy:
-
-```bash
-rm -rf /var/lib/caddy/.local/share/caddy/certificates/
-```
-
-### Liberación del Dominio Temporal (`sslip.io`)
-
-A diferencia de los dominios DNS tradicionales que requieren cancelar suscripciones o borrar registros en un panel de control, `sslip.io` es un servicio de DNS algorítmico **sin estado** (*stateless*). No almacena bases de datos con tu nombre.
-
-En el instante en que destruyes la máquina virtual en Cherry Servers, la dirección IP se desasocia de tu cuenta. Ninguna petición posterior llegará a tus datos ni a tu servicio.
+Para mantener la disciplina de costos en la nube y evitar cobros residuales una vez concluida tu práctica:
 
 ### Destrucción de la Infraestructura con OpenTofu
 
@@ -507,15 +484,39 @@ Destroy complete! Resources: 2 destroyed.
 
 El costo total de haber ejecutado este laboratorio completo ronda entre **~$0.02 y $0.03 USD**.
 
+### Ciclo de Vida Criptográfico y Liberación del Dominio (`sslip.io`)
+
+En infraestructuras en la nube efímeras y declarativas, es importante entender qué ocurre con los activos digitales al destruir el servidor:
+
+1. **Destrucción de la Clave Privada:** Al ejecutar `tofu destroy`, la máquina virtual y su almacenamiento persistente se eliminan por completo. La clave privada RSA/ECC que Caddy generó para solicitar el certificado ante Let's Encrypt desaparece físicamente. Sin la clave privada, el certificado público emitido carece de utilidad para terceros y simplemente expirará de forma natural a los 90 días sin sobrecargar los servicios OCSP/CRL de Let's Encrypt.
+1. **Liberación algorítmica de `sslip.io`:** A diferencia de los dominios DNS tradicionales que requieren cancelar suscripciones o borrar registros en un panel de control, `sslip.io` es un servicio de DNS algorítmico **sin estado** (*stateless*). En el instante en que Cherry Servers recupera la dirección IP, ninguna petición posterior llegará a tus datos ni a tu infraestructura.
+
+> **Procedimiento de contingencia (Revocación ante compromiso):**
+> Si en un entorno de producción real sospechas que la clave privada de un certificado fue filtrada o comprometida antes de destruir el servidor, la buena práctica exige revocar el certificado activamente. Puedes hacerlo conectándote por SSH antes de destruir la máquina:
+>
+> ```bash
+> dnf -y install certbot
+> SERVER_IP=$(curl -s4 https://icanhazip.com)
+> DOMAIN="${SERVER_IP}.sslip.io"
+>
+> certbot revoke \
+>   --cert-path "/var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory/${DOMAIN}/${DOMAIN}.crt" \
+>   --key-path "/var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory/${DOMAIN}/${DOMAIN}.key" \
+>   --reason cessationOfOperation \
+>   --no-delete-after-revoke \
+>   --non-interactive
+> ```
+
 ---
 
-## 6. Retos de Aprendizaje y Práctica
+## 5. Retos de Aprendizaje y Práctica
 
 Para consolidar tu dominio sobre proxies inversos, contenedores y SELinux, te invito a resolver estos 3 desafíos prácticos:
 
 1. **Reto 1: Blindar Vaultwarden deshabilitando registros y activando el panel de administración**
    * Una vez creada tu cuenta de usuario principal, un gestor de contraseñas publicado en internet no debe permitir registros abiertos al público.
    * Modifica el archivo Quadlet de Vaultwarden (`/etc/containers/systemd/vaultwarden.container`) para establecer la variable de entorno `SIGNUPS_ALLOWED=false` y agrega `ADMIN_TOKEN` con una cadena criptográfica generada mediante `openssl rand -base64 32`.
+   * *(Recomendación de seguridad upstream):* Vaultwarden aconseja utilizar tokens hasheados con Argon2id en lugar de texto plano. Puedes generar el hash ejecutando `podman run --rm -it docker.io/vaultwarden/server:latest /vaultwarden hash` e ingresando la cadena generada como valor de `ADMIN_TOKEN`.
    * Recarga Systemd (`systemctl daemon-reload` y reinicia el servicio con `systemctl restart vaultwarden.service`). Comprueba que el formulario web de registro rechace nuevas cuentas, pero que puedas acceder a la consola administrativa en `https://<TU_IP>.sslip.io/admin` introduciendo tu token.
 
 1. **Reto 2: Publicar un segundo servicio virtual con Caddy y `sslip.io` (Multi-sitio/SNI)**

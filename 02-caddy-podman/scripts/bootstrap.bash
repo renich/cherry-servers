@@ -23,8 +23,8 @@ dnf -y install epel-release dnf-plugins-core
 dnf -y copr enable @caddy/caddy
 
 # 2. Instalar Caddy, Podman, utilerías de actualización y herramientas auxiliares
-echo "[+] Instalando paquetes RPM: caddy, podman, firewalld, curl, jq, certbot y dnf-automatic..."
-dnf -y install caddy podman firewalld curl jq certbot dnf-automatic
+echo "[+] Instalando paquetes RPM: caddy, podman, firewalld, curl, jq y dnf-automatic..."
+dnf -y install caddy podman firewalld curl jq dnf-automatic
 
 # 3. Crear estructura de datos persistente bajo FHS 3.0
 mkdir -p /srv/vaultwarden/data
@@ -45,7 +45,6 @@ ContainerName=vaultwarden
 PublishPort=127.0.0.1:8080:80
 Volume=/srv/vaultwarden/data:/data:Z
 Environment=SIGNUPS_ALLOWED=true
-Environment=WEBSOCKET_ENABLED=true
 AutoUpdate=registry
 
 [Install]
@@ -60,20 +59,20 @@ systemctl daemon-reload
 systemctl start vaultwarden.service
 
 # Habilitar actualizaciones automáticas para el contenedor (podman-auto-update)
-systemctl enable --now podman-auto-update.timer
+systemctl --now enable podman-auto-update.timer
 
 # Configurar e iniciar actualizaciones automáticas del sistema operativo (dnf-automatic)
 sed -i 's/^apply_updates = .*/apply_updates = yes/' /etc/dnf/automatic.conf || true
-systemctl enable --now dnf-automatic.timer
+systemctl --now enable dnf-automatic.timer
 
 # 6. Configurar Caddyfile con FQDN y proxy inverso
 echo "[+] Generando configuración de Caddy (/etc/caddy/Caddyfile)..."
 mkdir -p /etc/caddy /var/log/caddy
 
 EFFECTIVE_DOMAIN="${VAULT_DOMAIN}"
-if [[ -z "${EFFECTIVE_DOMAIN}" || "${EFFECTIVE_DOMAIN}" == "auto" ]]; then
+if [[ -z "$EFFECTIVE_DOMAIN" || "$EFFECTIVE_DOMAIN" == "auto" ]]; then
   SERVER_IP=$(curl -s4 https://icanhazip.com || ip -4 addr show scope global | awk '/inet /{print $2}' | cut -d/ -f1 | head -n1)
-  EFFECTIVE_DOMAIN="${SERVER_IP}.sslip.io"
+  EFFECTIVE_DOMAIN="$SERVER_IP.sslip.io"
 fi
 
 cat << EOF > /etc/caddy/Caddyfile
@@ -85,15 +84,11 @@ cat << EOF > /etc/caddy/Caddyfile
     admin off
 }
 
-${EFFECTIVE_DOMAIN} {
+$EFFECTIVE_DOMAIN {
     ${TLS_DIRECTIVE}
 
-    # Proxy inverso al contenedor local en loopback
-    reverse_proxy 127.0.0.1:8080 {
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
+    # Proxy inverso al contenedor local en loopback (Caddy gestiona X-Forwarded-* automáticamente)
+    reverse_proxy 127.0.0.1:8080
 
     log {
         output file /var/log/caddy/vaultwarden.access.log
@@ -110,18 +105,18 @@ echo "[+] Aplicando políticas de SELinux..."
 # Permitir que el dominio de Caddy (httpd_t) inicie conexiones TCP hacia localhost
 setsebool -P httpd_can_network_connect 1
 
-# Restaurar etiquetas de contexto en FHS y configuraciones
-restorecon -Rv /srv/vaultwarden /etc/caddy /var/log/caddy || true
+# Restaurar etiquetas de contexto en configuraciones y registros de Caddy
+restorecon -Rv /etc/caddy /var/log/caddy
 
 # 8. Configuración de Firewalld para HTTP (80/tcp) y HTTPS (443/tcp)
 echo "[+] Configurando reglas de firewall (HTTP y HTTPS)..."
-systemctl enable --now firewalld
+systemctl --now enable firewalld
 firewall-cmd --permanent --add-service=http
 firewall-cmd --permanent --add-service=https
 firewall-cmd --reload
 
 # 9. Arrancar e iniciar el servicio Caddy
 echo "[+] Habilitando e iniciando servicio caddy.service..."
-systemctl enable --now caddy.service
+systemctl --now enable caddy.service
 
-echo "[+] Despliegue completado con éxito. Vaultwarden disponible bajo https://${EFFECTIVE_DOMAIN}"
+echo "[+] Despliegue completado con éxito. Vaultwarden disponible bajo https://$EFFECTIVE_DOMAIN"
