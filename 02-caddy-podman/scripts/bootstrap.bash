@@ -16,14 +16,13 @@ exec > >(tee -a /var/log/user-data.log | logger -t user-data -s 2>/dev/console) 
 
 echo "[+] Iniciando despliegue de Caddy + Vaultwarden en CentOS Stream 10..."
 
-# 1. Habilitar repositorios EPEL 10, CRB y el repositorio COPR oficial de Caddy
-echo "[+] Configurando repositorios EPEL 10, CRB y COPR (@caddy/caddy)..."
-dnf -y install epel-release dnf-plugins-core
+# 1. Habilitar repositorios EPEL 10 y CRB
+echo "[+] Configurando repositorios EPEL 10 y CRB..."
+dnf -y install epel-release
 /usr/bin/crb enable || true
-dnf -y copr enable @caddy/caddy
 
 # 2. Instalar Caddy, Podman, utilerías de actualización y herramientas auxiliares
-echo "[+] Instalando paquetes RPM: caddy, podman, firewalld, curl, jq y dnf-automatic..."
+echo "[+] Instalando paquetes RPM desde EPEL 10: caddy, podman, firewalld, curl, jq y dnf-automatic..."
 dnf -y install caddy podman firewalld curl jq dnf-automatic
 
 # 3. Crear estructura de datos persistente bajo FHS 3.0

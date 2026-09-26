@@ -73,23 +73,20 @@ La arquitectura divide responsabilidades de forma limpia y robusta:
 
 ### Paso B: Habilitar Repositorios e Instalar Paquetes RPM
 
-Habilita **EPEL 10**, **CRB** y el repositorio oficial de Caddy en COPR (`@caddy/caddy`):
+Habilita **EPEL 10** (*Extra Packages for Enterprise Linux*) y **CRB** (*CodeReady Linux Builder*). A diferencia de ramas anteriores de Enterprise Linux (como EL8 o EL9 donde Caddy requería repositorios externos por rezago de versiones), en **CentOS Stream 10** y **EPEL 10** el servidor web Caddy v2 se distribuye y mantiene directamente en los repositorios oficiales de la comunidad Fedora/EPEL:
 
 ```bash
-# 1. Habilitar EPEL 10 y herramientas auxiliares
-dnf -y install epel-release dnf-plugins-core
+# 1. Habilitar repositorio EPEL 10 y habilitar CRB
+dnf -y install epel-release
 /usr/bin/crb enable
 
-# 2. Habilitar el repositorio oficial de Caddy
-dnf -y copr enable @caddy/caddy
-
-# 3. Instalar Caddy, Podman, utilerías de actualización y herramientas de diagnóstico
+# 2. Instalar Caddy, Podman, utilerías de actualización y herramientas de diagnóstico
 dnf -y install caddy podman firewalld curl jq dnf-automatic
 ```
 
-> **¿Por qué el repositorio COPR `@caddy/caddy`?**
+> **¿Por qué priorizar EPEL sobre COPR?**
 >
-> El equipo oficial de desarrollo de Caddy mantiene este repositorio en Fedora COPR para proveer compilaciones actualizadas y optimizadas de Caddy v2 para el ecosistema RHEL, CentOS Stream y Fedora, incluyendo integración completa con Systemd y políticas base de SELinux.
+> Como principio de arquitectura y administración de sistemas en Linux para entornos de producción, la prioridad absoluta siempre pertenece a los repositorios oficiales de la distribución (CentOS Stream BaseOS/AppStream) y a las extensiones auditadas y firmadas por Fedora (**EPEL**). Repositorios comunitarios en COPR se reservan estrictamente como segunda opción cuando un paquete es inexistente en EPEL o cuando se requiere una compilación experimental especializada.
 
 ### Paso C: Estructura de Datos y Permisos bajo FHS 3.0
 
@@ -242,7 +239,7 @@ En lugar de relajar SELinux o desactivarlo (lo cual está terminantemente desaco
 setsebool -P httpd_can_network_connect 1
 ```
 
-*(Nota: Aunque el scriptlet RPM de Caddy en COPR activa este booleano durante su instalación, conocerlo y verificarlo con `getsebool httpd_can_network_connect` es una habilidad fundamental de SRE para diagnosticar fallas en cualquier proxy como Nginx, Apache o Envoy).*
+*(Nota: Aunque el scriptlet RPM del paquete oficial de Caddy en EPEL 10 activa este booleano durante su instalación, conocerlo y verificarlo con `getsebool httpd_can_network_connect` es una habilidad fundamental de SRE para diagnosticar fallas en cualquier proxy como Nginx, Apache o Envoy).*
 
 #### 3. Etiquetado de volúmenes de contenedor (`:Z`)
 
