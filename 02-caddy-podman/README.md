@@ -29,7 +29,9 @@ Fieles a nuestra filosofía **«Manual Primero, Automatización Después»**, pr
 
 ## 1. Prerrequisitos del Laboratorio
 
-1. Un servidor con **CentOS Stream 10** en la nube con IP pública accesible (o máquina virtual local con IP pública) con acceso SSH como `root` mediante clave pública Ed25519 (`~/.ssh/id_ed25519.pub`). Si aún no tienes un par de llaves:
+1. Un servidor con **CentOS Stream 10** en la nube con IP pública accesible (o máquina virtual local con IP pública) con acceso SSH como `root` mediante clave pública Ed25519 (`~/.ssh/id_ed25519.pub`).
+   * **Saldo promocional para la práctica ($20 USD):** Puedes desplegar tu servidor en la nube sin costo gracias al patrocinio de **Cherry Servers** para la comunidad. Regístrate en [este enlace de bienvenida](https://portal.cherryservers.com/register?promo_code=LinuxEnEspanol) utilizando el código promocional `LinuxEnEspanol` para recibir **$20 USD de crédito de regalo**.
+   * Si aún no tienes un par de llaves:
 
    ```bash
    ssh-keygen -t ed25519 -C "tu_correo@ejemplo.com"
@@ -420,7 +422,7 @@ resource "cherryservers_server" "caddy_node" {
 
 ### Configurar Variables Locales y Desplegar (`tofu apply`)
 
-Copia la plantilla de variables:
+Copia la plantilla de variables (si aún no tienes cuenta, recuerda registrarte con el [saldo promocional de $20 USD](https://portal.cherryservers.com/register?promo_code=LinuxEnEspanol)):
 
 ```bash
 cp terraform.tfvars.example terraform.tfvars

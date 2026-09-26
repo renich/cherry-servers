@@ -29,7 +29,9 @@ Siguiendo nuestra filosofía pedagógica **«Manual Primero, Automatización Des
 
 Para realizar este Cómo necesitas:
 
-1. Un servidor con **CentOS Stream 10** en la nube (o una máquina virtual local de pruebas) con acceso SSH como `root` mediante clave pública Ed25519 (`~/.ssh/id_ed25519.pub`). Si aún no tienes una llave generada:
+1. Un servidor con **CentOS Stream 10** en la nube (o una máquina virtual local de pruebas) con acceso SSH como `root` mediante clave pública Ed25519 (`~/.ssh/id_ed25519.pub`).
+   * **Saldo promocional para la práctica ($20 USD):** Puedes desplegar tu servidor en la nube sin costo gracias al patrocinio de **Cherry Servers** para la comunidad. Regístrate en [este enlace de bienvenida](https://portal.cherryservers.com/register?promo_code=LinuxEnEspanol) utilizando el código promocional `LinuxEnEspanol` para recibir **$20 USD de crédito de regalo**.
+   * Si aún no tienes una llave generada:
 
    ```bash
    ssh-keygen -t ed25519 -C "tu_correo@ejemplo.com"
@@ -263,7 +265,7 @@ resource "cherryservers_server" "luanti_node" {
 > **Aviso de disciplina de costos:**
 > Si realizaste la construcción manual previa en un servidor en la nube en Cherry Servers (o en una VM local), recuerda apagarla o destruirla antes de desplegar este entorno automatizado para evitar costos concurrentes innecesarios.
 
-Copia la plantilla de ejemplo y edítala con tus credenciales de Cherry Servers:
+Copia la plantilla de ejemplo y edítala con tus credenciales de Cherry Servers (recuerda que puedes obtener tu API token registrándote con el [saldo promocional de $20 USD](https://portal.cherryservers.com/register?promo_code=LinuxEnEspanol)):
 
 ```bash
 cp terraform.tfvars.example terraform.tfvars

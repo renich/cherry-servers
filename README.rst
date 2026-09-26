@@ -41,6 +41,16 @@ Principios Fundamentales
 * **Disciplina de Destrucción**: Flujo obligatorio de ``tofu destroy`` al final de cada
   Cómo para cultivar una gestión responsable de recursos en la nube.
 
+Crédito Promocional para la Comunidad ($20 USD)
+-----------------------------------------------
+
+Para que los estudiantes, administradores de sistemas y entusiastas puedan realizar las prácticas de esta serie en servidores reales sin costo personal, gestionamos con el equipo de **Cherry Servers** un patrocinio directo para la comunidad:
+
+* **Enlace oficial de registro:** `https://portal.cherryservers.com/register?promo_code=LinuxEnEspanol <https://portal.cherryservers.com/register?promo_code=LinuxEnEspanol>`_
+* **Código de promoción:** ``LinuxEnEspanol``
+* **Beneficio:** **$20 USD** de saldo de regalo para desplegar instancias en la nube (se acreditan unas horas tras validar tu cuenta).
+* **Cobertura:** Con este saldo cubres con holgura los 10 laboratorios de la serie (cuyo costo acumulado estimado es de apenas ~$2.50 USD), siempre que apliques la regla de oro de destruir los recursos (``tofu destroy``) al terminar cada práctica.
+
 Matriz de Cómos y Presupuesto
 -----------------------------
 
