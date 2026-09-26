@@ -190,10 +190,6 @@ echo "Configurando Caddy para el dominio público: ${VAULT_DOMAIN}"
 mkdir -p /etc/caddy /var/log/caddy
 
 cat << EOF > /etc/caddy/Caddyfile
-{
-    admin off
-}
-
 ${VAULT_DOMAIN} {
     # Proxy inverso al contenedor local en loopback (Caddy gestiona X-Forwarded-* automáticamente)
     reverse_proxy 127.0.0.1:8080
@@ -276,7 +272,6 @@ firewall-cmd --reload
 Inicia y habilita el servicio de Caddy:
 
 ```bash
-systemctl daemon-reload
 systemctl --now enable caddy.service
 ```
 
@@ -300,7 +295,7 @@ Para verificar el servicio desde tu estación de trabajo (sustituyendo `<IP_DEL_
    curl -I https://<IP_DEL_SERVIDOR>.sslip.io/
    ```
 
-   Observa que la petición se realiza **sin banderas `-k` ni `--insecure`**. Recibirás una respuesta HTTP `200 OK` con cabeceras `server: Rocket` y `via: 1.1 Caddy` firmada por Let's Encrypt.
+   Observa que la petición se realiza **sin banderas `-k` ni `--insecure`**. Recibirás una respuesta HTTP `200 OK` con cabecera `server: Rocket` y una conexión cifrada de extremo a extremo validada por el certificado oficial de Let's Encrypt.
 
 1. **Acceso desde el navegador:**
    Abre tu navegador e ingresa a `https://<IP_DEL_SERVIDOR>.sslip.io`.
@@ -320,9 +315,10 @@ Un servidor en producción requiere mecanismos confiables para aplicar parches d
 
 Para mantener CentOS Stream 10 protegido contra vulnerabilidades del kernel y paquetes base sin intervención manual:
 
-1. Configura `dnf-automatic` para aplicar actualizaciones de forma desatendida:
+1. Configura `dnf-automatic` para aplicar actualizaciones de forma desatendida (en CentOS Stream 10 con DNF5, copiando primero la plantilla base si el archivo aún no existe en `/etc`):
 
    ```bash
+   [[ -f /etc/dnf/automatic.conf ]] || cp /usr/share/dnf5/dnf5-plugins/automatic.conf /etc/dnf/automatic.conf
    sed -i 's/^apply_updates = .*/apply_updates = yes/' /etc/dnf/automatic.conf
    ```
 
