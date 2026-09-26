@@ -5,6 +5,7 @@
 > * **Versión:** `v1.0.0`
 > * **Fecha:** `2026-08-18`
 > * **Rama de Git:** [`01-luanti-tofu`](https://gitlab.com/renich/cherry-servers/-/tree/01-luanti-tofu)
+> * **Licencia:** [`GFDL-1.3-or-later`](../LICENSE)
 > * **Tipo de instancia:** Cloud VPS 2 (Gen 2: 2 vCPU/2 GB RAM/40GB SSD)
 > * **Costo por hora:** ~$0.033 EUR/hora (~$0.035 USD/hora)
 > * **Tiempo promedio:** 1 hora
@@ -340,3 +341,11 @@ Para consolidar lo aprendido y poner a prueba tu destreza en la terminal, te pro
 ### Dudas y Preguntas
 
 Deja tus dudas o comentarios abriendo un Issue en el repositorio de GitLab. ¡Nos vemos en el **Cómo 02: Reverse Proxy con Caddy y Vaultwarden en Podman**!
+
+---
+
+## Licencia
+
+Este documento y el material educativo de este Cómo se distribuyen bajo los términos de la **GNU Free Documentation License (GFDL)**, Versión 1.3 o cualquier versión posterior publicada por la Free Software Foundation; sin secciones invariantes ni textos de portada o contraportada.
+
+Consulta el archivo [`LICENSE`](../LICENSE) en la raíz del repositorio para leer los términos completos.

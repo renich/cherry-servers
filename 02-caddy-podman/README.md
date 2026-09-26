@@ -5,6 +5,7 @@
 > * **Versión:** `v1.0.0`
 > * **Fecha:** `2026-08-19`
 > * **Rama de Git:** [`02-caddy-podman`](https://gitlab.com/renich/cherry-servers/-/tree/02-caddy-podman)
+> * **Licencia:** [`GFDL-1.3-or-later`](../LICENSE)
 > * **Tipo de instancia:** Cloud VPS 1 (Gen 2: 1 vCPU/1 GB RAM/20GB SSD) o Cloud VPS 2
 > * **Costo por hora:** ~$0.015 EUR/hora (~$0.016 USD/hora)
 > * **Tiempo promedio:** 1-2 horas
@@ -533,3 +534,11 @@ Para consolidar tu dominio sobre proxies inversos, contenedores y SELinux, te in
 ### Dudas y Preguntas
 
 ¿Tienes preguntas sobre Podman Quadlets, configuración de Caddy o políticas de SELinux? Abre un Issue en el repositorio de GitLab o súmate a las conversaciones de la comunidad. ¡Nos vemos en el **Cómo 03: Reconstrucción y Automatización con Ansible**!
+
+---
+
+## Licencia
+
+Este documento y el material educativo de este Cómo se distribuyen bajo los términos de la **GNU Free Documentation License (GFDL)**, Versión 1.3 o cualquier versión posterior publicada por la Free Software Foundation; sin secciones invariantes ni textos de portada o contraportada.
+
+Consulta el archivo [`LICENSE`](../LICENSE) en la raíz del repositorio para leer los términos completos.

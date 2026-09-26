@@ -67,7 +67,7 @@ Matriz de Cómos y Presupuesto
 +----+--------------------------------+--------------------+---------+----------------------+---------------+---------------+-----------------+
 | 10 | OpenStack con Kolla-Ansible    | ``10-kolla``       | v1.0.0  | 3x Spot BM (E5-1620) | ~$0.276/hr    | 4.0 hrs       | **$1.10**       |
 +----+--------------------------------+--------------------+---------+----------------------+---------------+---------------+-----------------+
-| **Gasto Total Acumulado Estimado de la Serie**                                                                              | **~$2.50 USD**  |
+| Σ  | Total Acumulado Estimado       | 10 Cómos           | v1.0.0  | Toda la serie        |               | ~19 hrs       | **~$2.50 USD**  |
 +----+--------------------------------+--------------------+---------+----------------------+---------------+---------------+-----------------+
 
 Estructura del Repositorio
@@ -104,3 +104,21 @@ Estándares de Documentación
 * **Artefactos de Difusión y Cómos**: Los Cómos individuales se redactan en Markdown
   (``README.md``) dentro de cada subdirectorio para facilitar su lectura local (vía ``grip``
   o ``glow``) y su publicación en plataformas comunitarias.
+
+Licencia
+--------
+
+Copyright © 2026 Rénich Bon Ćirić <renich@evalinux.com>
+
+Se concede permiso para copiar, distribuir y/o modificar este documento y los Cómos de esta serie bajo los términos de la **Licencia de Documentación Libre de GNU (GNU Free Documentation License)**, Versión 1.3 o cualquier versión posterior publicada por la Free Software Foundation; sin Secciones Invariantes, sin Textos de Portada y sin Textos de Contraportada.
+
+.. code-block:: text
+
+   SPDX-License-Identifier: GFDL-1.3-or-later
+
+Los ejemplos de código, scripts en Bash y manifiestos de Infraestructura como Código (OpenTofu) contenidos en este repositorio se licencian en paralelo bajo la **GNU General Public License v3.0 o posterior (GPL-3.0-or-later)** para permitir su libre reutilización e integración técnica.
+
+Una copia completa de la licencia se encuentra en el archivo `LICENSE`_ en la raíz del repositorio.
+
+.. _LICENSE: LICENSE
+
