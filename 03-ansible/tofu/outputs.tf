@@ -24,6 +24,6 @@ output "web_url" {
 }
 
 output "ansible_playbook_command" {
-  description = "Comando para ejecutar el playbook de Ansible contra el nodo desplegado"
-  value       = "ansible-playbook -i inventory.ini playbook.yml"
+  description = "Comando para ejecutar el playbook de Ansible (ejecutar desde la raíz del módulo: 03-ansible/)"
+  value       = "ansible-playbook -i inventory.ini playbook.yaml"
 }

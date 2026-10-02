@@ -2,7 +2,7 @@
 # =============================================================================
 # Dependencias de Colecciones de Ansible para Cómo 03
 # =============================================================================
-# Instalar con: ansible-galaxy collection install -r requirements.yml
+# Instalar con: ansible-galaxy collection install -r requirements.yaml
 
 collections:
   - name: ansible.posix

@@ -45,12 +45,12 @@ Siguiendo nuestra filosofía pedagógica **«Manual Primero, Automatización Des
 
    > **Disponibilidad del paquete RPM:** El paquete `ansible-collection-ansible-posix` está disponible oficialmente tanto en **Fedora Linux** como en **EPEL 10** para CentOS Stream 10 (`ansible-collection-ansible-posix-2.2.1`). Puedes instalarlo directamente con DNF en tu estación de trabajo.
 
-1. Gestión declarativa de colecciones con Ansible Galaxy (`requirements.yml`):
+1. Gestión declarativa de colecciones con Ansible Galaxy (`requirements.yaml`):
 
-   Aunque Fedora y EPEL 10 empaquetan esta colección como RPM del sistema, en la administración profesional de infraestructura la mejor práctica es no acoplar tus playbooks al gestor de paquetes del host. Declarar las dependencias en un archivo `requirements.yml` permite que tu proyecto sea portátil y reproducible en cualquier estación de trabajo o pipeline de CI/CD (independientemente de si corre en Fedora, Debian, Ubuntu o macOS):
+   Aunque Fedora y EPEL 10 empaquetan esta colección como RPM del sistema, en la administración profesional de infraestructura la mejor práctica es no acoplar tus playbooks al gestor de paquetes del host. Declarar las dependencias en un archivo `requirements.yaml` permite que tu proyecto sea portátil y reproducible en cualquier estación de trabajo o pipeline de CI/CD (independientemente de si corre en Fedora, Debian, Ubuntu o macOS):
 
    ```bash
-   cat << 'EOF' > requirements.yml
+   cat << 'EOF' > requirements.yaml
    ---
    collections:
      - name: ansible.posix
@@ -61,7 +61,7 @@ Siguiendo nuestra filosofía pedagógica **«Manual Primero, Automatización Des
    Instala las colecciones declaradas en tu entorno local con `ansible-galaxy`:
 
    ```bash
-   ansible-galaxy collection install -r requirements.yml
+   ansible-galaxy collection install -r requirements.yaml
    ```
 
 ---
@@ -144,7 +144,7 @@ EOF
 
 Al mantener `host_key_checking = True`, tu cliente SSH verificará la identidad del servidor remoto antes de transmitir cualquier dato.
 
-Para registrar la clave pública del host remoto de forma segura y automatizada en tu archivo `~/.ssh/known_hosts`, utiliza la herramienta estándar `ssh-keyscan`:
+Si bien en el Paso A aceptaste interactivamente la huella en tu terminal al conectar manualmente, en automatizaciones, pipelines y despliegues desatendidos el patrón estándar de la industria es registrar previamente la clave pública con la herramienta estándar `ssh-keyscan` para evitar interrupciones por prompts interactivos:
 
 ```bash
 ssh-keyscan -t ed25519 <IP_DEL_SERVIDOR> >> ~/.ssh/known_hosts
@@ -217,7 +217,35 @@ cherry-node | SUCCESS => {
 
 ---
 
-### Paso D: Creación del Playbook Declarativo e Idempotente (`playbook.yml`)
+#### El Manual de Componentes y Módulos: `ansible-doc`
+
+Antes de escribir una sola línea de código en tu Playbook, necesitas saber cómo explorar la documentación de Ansible. No necesitas memorizar parámetros ni buscar recetas dispersas en internet: Ansible incluye su propio sistema de manual integrado directamente en tu terminal:
+
+* **Consultar el manual completo de un módulo:**
+
+  ```bash
+  ansible-doc ansible.posix.selinux
+  ```
+
+  Despliega una interfaz interactiva (análoga a las páginas `man`) con la descripción del módulo, requisitos del sistema, parámetros disponibles, valores por defecto y ejemplos de uso prácticos.
+
+* **Obtener un snippet conciso listo para usar (`-s`):**
+
+  ```bash
+  ansible-doc -s ansible.posix.selinux
+  ansible-doc -s ansible.posix.firewalld
+  ansible-doc -s ansible.builtin.dnf
+  ```
+
+  La bandera `-s` (*snippet*) imprime la estructura YAML exacta del módulo con los tipos de datos esperados y marcas de campos obligatorios (`# (required)`), ideal para consultar rápidamente la sintaxis mientras construyes tu receta.
+
+* **Documentación oficial upstream en la web:**
+   * Colección [`ansible.posix`](https://docs.ansible.com/ansible/latest/collections/ansible/posix/): Módulos para cortafuegos (`firewalld`), políticas de seguridad (`selinux`), variables del kernel (`sysctl`) y montajes.
+   * Colección [`ansible.builtin`](https://docs.ansible.com/ansible/latest/collections/ansible/builtin/): Módulos esenciales del núcleo (`dnf`, `systemd_service`, `file`, `template`, `copy`, `user`, `group`).
+
+---
+
+### Paso D: Creación del Playbook Declarativo e Idempotente (`playbook.yaml`)
 
 Un **Playbook** es un archivo YAML donde describes el **estado deseado** de tu infraestructura. En lugar de ordenar secuencias de comandos imperativos («ejecuta esto, luego esto otro»), defines declaraciones de estado («este paquete debe estar presente», «este servicio debe estar activo», «este archivo debe tener estos permisos»).
 
@@ -414,14 +442,190 @@ cat << 'EOF' > templates/index.html.j2
 EOF
 ```
 
-Ahora escribe el archivo `playbook.yml`. Observa los siguientes detalles de ingeniería:
+---
 
-1. **Gestión explícita del directorio raíz FHS 3.0 (`/srv/webapp`):** Al crear el usuario `webapp`, `useradd -m` crea `/srv/webapp` con permisos restrictivos `0700`. Gestionamos explícitamente `/srv/webapp` con permisos `0750` para que el usuario `nginx` (que añadimos al grupo secundario `webapp`) pueda atravesar el árbol de directorios (*directory traversal*) sin provocar errores `403 Forbidden`.
-1. **Validación segura de Nginx:** Validamos la configuración con `/usr/sbin/nginx -t` en una tarea dedicada con `changed_when: false`, evitando problemas de sintaxis con argumentos posicionales temporales en la directiva `validate`.
-1. **SELinux:** Asignamos explícitamente `seuser: system_u` y los tipos correspondientes (`httpd_sys_content_t` y `httpd_config_t`).
+### Anatomía y Construcción del Playbook Bloque a Bloque
+
+En lugar de copiar ciegamente un archivo monolítico, analiza la anatomía del Playbook dividida en sus seis bloques arquitectónicos:
+
+#### Bloque 1: Cabecera del Play y Variables Globales (`vars`)
+
+Todo Playbook inicia declarando el grupo objetivo (`hosts: webservers`), activando la recolección de hechos del sistema (`gather_facts: true`) y aislando los parámetros de configuración en variables para no tener valores fijos (*hardcode*) dispersos:
+
+```yaml
+---
+- name: Aprovisionar y asegurar servidor web FHS 3.0 en CentOS Stream 10
+  hosts: webservers
+  gather_facts: true
+
+  vars:
+    webapp_service_user: "webapp"
+    webapp_service_group: "webapp"
+    webapp_root_dir: "/srv/webapp"
+    webapp_public_dir: "/srv/webapp/public"
+    webapp_version: "1.0.0"
+    required_packages:
+      - epel-release
+      - nginx
+      - firewalld
+      - chrony
+      - curl
+      - jq
+```
+
+#### Bloque 2: Paquetes del Sistema y Sincronización de Tiempo (Chrony)
+
+Instalamos la lista de paquetes en una sola transacción DNF. En Ansible, pasar una lista de paquetes a `name:` es infinitamente más eficiente que usar un bucle `loop:`, ya que DNF resuelve todas las dependencias en una sola ejecución:
+
+```yaml
+  tasks:
+    - name: Instalar paquetes esenciales del sistema y repositorio EPEL 10
+      ansible.builtin.dnf:
+        name: "{{ required_packages }}"
+        state: present
+
+    - name: Garantizar que el servicio de sincronización de tiempo Chrony esté activo
+      ansible.builtin.systemd_service:
+        name: chronyd
+        state: started
+        enabled: true
+```
+
+#### Bloque 3: Usuario de Sistema y Jerarquía FHS 3.0
+
+Creamos una cuenta de sistema dedicada para aislar los procesos web (`webapp`) sin shell interactiva (`/sbin/nologin`). Observa el manejo de permisos:
+
+1. `useradd -m` crea `/srv/webapp` con permisos restrictivos `0700` por defecto en Linux.
+1. Si no modificamos el directorio base, ningún otro usuario podrá acceder a sus subdirectorios.
+1. Declaramos explícitamente `/srv/webapp` con permisos `0750` y tipo SELinux `httpd_sys_content_t` para permitir que Nginx atraviese la jerarquía:
+
+```yaml
+    - name: Crear grupo de sistema dedicado bajo estándar FHS 3.0
+      ansible.builtin.group:
+        name: "{{ webapp_service_group }}"
+        state: present
+        system: true
+
+    - name: Crear usuario de sistema sin shell interactiva
+      ansible.builtin.user:
+        name: "{{ webapp_service_user }}"
+        group: "{{ webapp_service_group }}"
+        shell: /sbin/nologin
+        home: "{{ webapp_root_dir }}"
+        create_home: true
+        system: true
+        state: present
+
+    - name: Crear directorio base del servicio bajo estándar FHS 3.0
+      ansible.builtin.file:
+        path: "{{ webapp_root_dir }}"
+        state: directory
+        owner: "{{ webapp_service_user }}"
+        group: "{{ webapp_service_group }}"
+        mode: '0750'
+        seuser: system_u
+        setype: httpd_sys_content_t
+
+    - name: Crear estructura de directorios web con permisos 0750 y contexto SELinux
+      ansible.builtin.file:
+        path: "{{ webapp_public_dir }}"
+        state: directory
+        owner: "{{ webapp_service_user }}"
+        group: "{{ webapp_service_group }}"
+        mode: '0750'
+        seuser: system_u
+        setype: httpd_sys_content_t
+```
+
+#### Bloque 4: Despliegue de Plantillas y Configuración de Nginx
+
+Desplegamos el HTML dinámico y el archivo de configuración en `/etc/nginx/conf.d/webapp.conf`. Notificamos al manejador para que Nginx solo se recargue si el archivo cambió, validamos la sintaxis con `/usr/sbin/nginx -t` y agregamos a `nginx` al grupo secundario `webapp`:
+
+```yaml
+    - name: Desplegar panel informativo dinámico HTML
+      ansible.builtin.template:
+        src: index.html.j2
+        dest: "{{ webapp_public_dir }}/index.html"
+        owner: "{{ webapp_service_user }}"
+        group: "{{ webapp_service_group }}"
+        mode: '0640'
+        seuser: system_u
+        setype: httpd_sys_content_t
+
+    - name: Desplegar configuración de bloque de servidor Nginx
+      ansible.builtin.template:
+        src: webapp.conf.j2
+        dest: /etc/nginx/conf.d/webapp.conf
+        owner: root
+        group: root
+        mode: '0644'
+        seuser: system_u
+        setype: httpd_config_t
+      notify: Recargar servicio Nginx
+
+    - name: Validar sintaxis global de Nginx tras desplegar bloque de servidor
+      ansible.builtin.command:
+        cmd: /usr/sbin/nginx -t
+      changed_when: false
+
+    - name: Agregar usuario nginx al grupo complementario de webapp para traversal de directorios
+      ansible.builtin.user:
+        name: nginx
+        groups: "{{ webapp_service_group }}"
+        append: true
+      notify: Recargar servicio Nginx
+```
+
+#### Bloque 5: Políticas de Seguridad (SELinux y Firewalld)
+
+Garantizamos que SELinux opere en modo **Enforcing** (cero compromisos de seguridad), habilitamos el cortafuegos con el servicio `http` permanente e inmediato, y aseguramos el arranque del demonio Nginx:
+
+```yaml
+    - name: Garantizar postura de SELinux en modo Enforcing con política targeted
+      ansible.posix.selinux:
+        policy: targeted
+        state: enforcing
+
+    - name: Asegurar que el cortafuegos firewalld esté activo y habilitado
+      ansible.builtin.systemd_service:
+        name: firewalld
+        state: started
+        enabled: true
+
+    - name: Habilitar servicio HTTP en firewalld de manera permanente e inmediata
+      ansible.posix.firewalld:
+        service: http
+        permanent: true
+        immediate: true
+        state: enabled
+
+    - name: Asegurar que el servicio Nginx esté iniciado y habilitado en el arranque
+      ansible.builtin.systemd_service:
+        name: nginx
+        state: started
+        enabled: true
+```
+
+#### Bloque 6: Manejadores de Estado (`handlers`)
+
+Los manejadores solo se ejecutan cuando una tarea emite una notificación (`notify`), evitando recargas innecesarias cuando el sistema ya se encuentra en el estado deseado:
+
+```yaml
+  handlers:
+    - name: Recargar servicio Nginx
+      ansible.builtin.systemd_service:
+        name: nginx
+        state: reloaded
+```
+
+---
+
+### Consolidación y Verificación del Archivo `playbook.yaml`
+
+Abre tu editor de texto favorito en la terminal (`nano playbook.yaml`, `micro playbook.yaml` o `vim playbook.yaml`) y consolida los bloques en tu archivo final, o utiliza el siguiente comando de referencia asegurando la indentación exacta de dos espacios:
 
 ```bash
-cat << 'EOF' > playbook.yml
+cat << 'EOF' > playbook.yaml
 ---
 - name: Aprovisionar y asegurar servidor web FHS 3.0 en CentOS Stream 10
   hosts: webservers
@@ -555,15 +759,15 @@ EOF
 ```
 
 > **Nota Técnica sobre SELinux (`setype` vs `semanage fcontext`):**
-> En este Playbook utilizamos `setype: httpd_sys_content_t` en los módulos `file` y `template`. Esto aplica el contexto directamente sobre el inodo en los atributos extendidos del sistema de archivos (`xattr`), de forma idéntica a ejecutar `chcon`. Es una solución ligera que no requiere instalar herramientas adicionales de políticas en el nodo gestionado. En entornos corporativos donde se ejecuten limpiezas rutinarias con `restorecon`, la política base de SELinux en `/srv` devolvería los archivos a `var_t`. En el Reto 2 explorarás cómo persistir reglas permanentes en la base de datos de SELinux con `semanage fcontext`.
+> En este Playbook utilizamos `setype: httpd_sys_content_t` en los módulos `file` y `template`. Esto aplica el contexto directamente sobre el inodo en los atributos extendidos del sistema de archivos (`xattr`), de forma idéntica a ejecutar `chcon`. Es una solución ligera que no requiere instalar herramientas adicionales de políticas en el nodo gestionado. En entornos corporativos donde se ejecuten limpiezas rutinarias con `restorecon`, la política base de SELinux en `/srv` devolvería los archivos a `var_t`. En el Reto 4 explorarás cómo persistir reglas permanentes en la base de datos de SELinux con `semanage fcontext` o el módulo `community.general.sefcontext`.
 
 Verifica la sintaxis del Playbook sin ejecutarlo:
 
 ```bash
-ansible-playbook --syntax-check playbook.yml
+ansible-playbook --syntax-check playbook.yaml
 ```
 
-Si la sintaxis es correcta, el comando confirmará: `playbook: playbook.yml`.
+Si la sintaxis es correcta, el comando confirmará: `playbook: playbook.yaml`.
 
 ---
 
@@ -572,17 +776,17 @@ Si la sintaxis es correcta, el comando confirmará: `playbook: playbook.yml`.
 Ejecuta el Playbook por primera vez:
 
 ```bash
-ansible-playbook playbook.yml
+ansible-playbook playbook.yaml
 ```
 
 Verás cómo Ansible ejecuta cada tarea en orden. Al finalizar, presentará el resumen de ejecución (*PLAY RECAP*):
 
 ```text
 PLAY RECAP *********************************************************************
-cherry-node   : ok=14   changed=11   unreachable=0    failed=0    skipped=0
+cherry-node   : ok=16   changed=13   unreachable=0    failed=0    skipped=0
 ```
 
-Observa que `changed=11`: Ansible detectó que los paquetes no estaban instalados, los usuarios y directorios no existían y los archivos faltaban, por lo que aplicó los cambios necesarios para alcanzar el estado deseado.
+Observa que `changed=13`: Ansible detectó que los paquetes no estaban instalados, los usuarios y directorios no existían y los archivos faltaban, por lo que aplicó los cambios necesarios para alcanzar el estado deseado.
 
 Ahora realiza la prueba de verificación HTTP desde tu estación de trabajo:
 
@@ -597,14 +801,14 @@ Verás la línea correspondiente confirmando que Nginx está sirviendo el conten
 Vuelve a ejecutar exactamente el mismo comando:
 
 ```bash
-ansible-playbook playbook.yml
+ansible-playbook playbook.yaml
 ```
 
 Observa atentamente el resultado del resumen:
 
 ```text
 PLAY RECAP *********************************************************************
-cherry-node   : ok=14   changed=0    unreachable=0    failed=0    skipped=0
+cherry-node   : ok=15   changed=0    unreachable=0    failed=0    skipped=0
 ```
 
 **`changed=0`**. Esto demuestra el principio fundamental de la **idempotencia**: el sistema ya se encuentra exactamente en el estado deseado, por lo que Ansible no modifica nada, no reinicia servicios innecesariamente y no altera el sistema operativo.
@@ -627,14 +831,14 @@ Si consultas el servicio web ahora con `curl http://<IP_DEL_SERVIDOR>`, fallará
 En un esquema de administración tradicional, tendrías que recordar qué se borró o qué comando faltó ejecutar. Con Ansible, simplemente ejecutas de nuevo tu Playbook:
 
 ```bash
-ansible-playbook playbook.yml
+ansible-playbook playbook.yaml
 ```
 
 Ansible detectará automáticamente que el archivo `/etc/nginx/conf.d/webapp.conf` falta y que el servicio `nginx` está detenido. Restaurará el archivo con su contexto SELinux correspondiente, reactivará el servicio y devolverá el servidor al 100% de operatividad:
 
 ```text
 PLAY RECAP *********************************************************************
-cherry-node   : ok=14   changed=2    unreachable=0    failed=0    skipped=0
+cherry-node   : ok=16   changed=2    unreachable=0    failed=0    skipped=0
 ```
 
 Vuelve a probar con `curl`:
@@ -712,7 +916,7 @@ Apply complete! Resources: 2 added, 0 changed, 0 destroyed.
 
 Outputs:
 
-ansible_playbook_command = "ansible-playbook -i inventory.ini playbook.yml"
+ansible_playbook_command = "ansible-playbook -i inventory.ini playbook.yaml"
 server_ip = "192.0.2.100"
 ssh_command = "ssh root@192.0.2.100"
 web_url = "http://192.0.2.100"
@@ -739,7 +943,7 @@ sed -i 's/ansible_host=[^ ]*/ansible_host=192.0.2.100/' inventory.ini
 Y ejecuta el Playbook para aprovisionar el servidor completo desde cero:
 
 ```bash
-ansible-playbook playbook.yml
+ansible-playbook playbook.yaml
 ```
 
 En menos de un minuto tendrás un servidor completamente nuevo, configurado, endurecido e idéntico al anterior.
@@ -769,12 +973,14 @@ ssh-keygen -R 192.0.2.100
 
 Pon a prueba tus habilidades de automatización con estos desafíos prácticos diseñados para profundizar en el ecosistema de Ansible:
 
-1. **Reto 1: Migración a Inventario YAML (`inventory.yml`)**
-   * El formato INI es compacto pero limitado en estructuras complejas. Convierte tu `inventory.ini` a la sintaxis estructurada oficial de YAML (`inventory.yml`). Define la jerarquía de grupos utilizando `all.children.webservers.hosts` y variables bajo la directiva `vars:`. Verifica que funcione ejecutando `ansible -i inventory.yml -m ansible.builtin.ping webservers`.
+1. **Reto 1: Migración a Inventario YAML (`inventory.yaml`)**
+   * El formato INI es compacto pero limitado en estructuras complejas. Convierte tu `inventory.ini` a la sintaxis estructurada oficial de YAML (`inventory.yaml`). Define la jerarquía de grupos utilizando `all.children.webservers.hosts` y variables bajo la directiva `vars:`. Verifica que funcione ejecutando `ansible -i inventory.yaml -m ansible.builtin.ping webservers`.
 1. **Reto 2: Generación Automática del Inventario desde OpenTofu**
    * En lugar de copiar y pegar la dirección IP manualmente tras ejecutar `tofu apply`, investiga cómo utilizar el recurso `local_file` de OpenTofu junto con la función `templatefile()` para escribir o actualizar automáticamente el archivo `inventory.ini` con la IP pública del servidor aprovisionado.
 1. **Reto 3: Inventario Dinámico con la API de Cherry Servers (`inventory.py`)**
-   * En entornos elásticos, los servidores cambian de IP continuamente. Ansible soporta **inventarios dinámicos** mediante cualquier script ejecutable (`chmod +x`) que al ejecutarse con la bandera `--list` imprima un JSON con la estructura de hosts. Construye un pequeño script en Python que consulte el endpoint `GET https://api.cherryservers.com/v1/projects/{project_id}/servers` utilizando tu token de autorización y devuelva los nodos activos para consumirlos directamente con `ansible-playbook -i inventory.py playbook.yml`.
+   * En entornos elásticos, los servidores cambian de IP continuamente. Ansible soporta **inventarios dinámicos** mediante cualquier script ejecutable (`chmod +x`) que al ejecutarse con la bandera `--list` imprima un JSON con la estructura de hosts. Construye un pequeño script en Python que consulte el endpoint `GET https://api.cherryservers.com/v1/projects/{project_id}/servers` utilizando tu token de autorización y devuelva los nodos activos para consumirlos directamente con `ansible-playbook -i inventory.py playbook.yaml`.
+1. **Reto 4: Persistencia de Políticas SELinux con `semanage fcontext`**
+   * En este laboratorio aplicamos el contexto directamente en los inodos mediante el módulo `ansible.builtin.file`. Sin embargo, si en el futuro se ejecuta `restorecon -Rv /srv/webapp`, el sistema restaurará los contextos por defecto de la política base (`var_t`). Investiga cómo instalar `policycoreutils-python-utils` y utilizar el módulo `community.general.sefcontext` (o comandos equivalentes) para persistir la regla `/srv/webapp(/.*)? -> httpd_sys_content_t` en la base de datos central de SELinux, asegurando que `restorecon` preserve la etiqueta correcta.
 
 ---
 
