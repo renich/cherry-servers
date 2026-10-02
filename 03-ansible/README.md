@@ -23,46 +23,162 @@ Sin embargo, configurar servidores ejecutando comandos manualmente por SSH uno p
 
 Aquí es donde entra **Ansible**: una herramienta de automatización y gestión de configuraciones **sin agentes** (*agentless*) que opera de forma declarativa e **idempotente** a través de SSH estándar.
 
-Siguiendo nuestra filosofía pedagógica **«Manual Primero, Automatización Después»**, en este laboratorio primero comprenderás cómo opera Ansible desde la línea de comandos de tu estación de trabajo local, construirás un Playbook declarativo paso a paso, comprobarás el principio de idempotencia y desvío de configuración (*configuration drift*), y finalmente orquestarás el aprovisionamiento de la máquina virtual con **OpenTofu**.
+Siguiendo nuestra filosofía pedagógica **«Manual Primero, Automatización Después»**, en este laboratorio primero comprenderás cómo opera Ansible desde la línea de comandos de tu entorno de control, construirás un Playbook declarativo paso a paso, comprobarás el principio de idempotencia y desvío de configuración (*configuration drift*), y finalmente orquestarás el aprovisionamiento automatizado del servidor con **OpenTofu**.
 
 ---
 
 ## 1. Prerrequisitos del Laboratorio
 
-1. Un servidor en la nube con **CentOS Stream 10** (o máquina virtual local) con acceso SSH como `root` mediante clave pública criptográfica Ed25519 (`~/.ssh/id_ed25519.pub`).
-   * **Saldo promocional patrocinado ($20 USD):** Puedes desplegar este laboratorio y toda la serie sin costo gracias al patrocinio de **Cherry Servers**. Regístrate mediante [este enlace de bienvenida](https://portal.cherryservers.com/register?promo_code=LinuxEnEspanol) utilizando el código promocional `LinuxEnEspanol` para recibir **$20 USD de crédito de regalo**.
-   * Si aún no cuentas con una clave Ed25519 en tu estación de trabajo:
+Para llevar a cabo esta práctica necesitas dos componentes fundamentales: un **nodo de control** desde donde orquestarás la infraestructura y un **nodo servidor objetivo** donde se aplicará la configuración.
 
-     ```bash
-     ssh-keygen -t ed25519 -C "tu_correo@ejemplo.com"
-     ```
+### A. Tu Entorno o Nodo de Control con CentOS Stream 10
 
-1. Clientes/herramientas locales instaladas en tu estación de trabajo (**Fedora Linux**):
+Dado que en esta serie educativa promovemos el dominio técnico de **CentOS Stream 10**, ejecutaremos todo el flujo de automatización (OpenTofu, Ansible Core y OpenSSH) directamente desde este sistema operativo.
 
-   ```bash
-   sudo dnf -y install ansible-core ansible-collection-ansible-posix opentofu curl jq openssh-clients
-   ```
+Muy probablemente tu computadora física personal no tiene CentOS Stream 10 instalado (utilizas Windows, macOS u otra distribución de Linux). Para obtener tu entorno de control en CentOS Stream 10, tienes dos alternativas directas:
 
-   > **Disponibilidad del paquete RPM:** El paquete `ansible-collection-ansible-posix` está disponible oficialmente tanto en **Fedora Linux** como en **EPEL 10** para CentOS Stream 10 (`ansible-collection-ansible-posix-2.2.1`). Puedes instalarlo directamente con DNF en tu estación de trabajo.
+1. **En la Nube con Cherry Servers (Opción Recomendada):**
+   * Puedes desplegar tu máquina virtual de control en cuestión de minutos gracias al patrocinio de **Cherry Servers** para nuestra comunidad.
+   * Regístrate mediante [este enlace de bienvenida](https://portal.cherryservers.com/register?promo_code=LinuxEnEspanol) utilizando el código promocional `LinuxEnEspanol` para recibir **$20 USD de crédito de regalo**.
+   * En el portal de Cherry Servers, crea una instancia **Cloud VPS 1** seleccionando **CentOS Stream 10** como sistema operativo. Esta máquina será tu **estación de control**.
+1. **En tu Hipervisor Local:**
+   * Si cuentas con un hipervisor local en tu equipo (como KVM/libvirt con `virt-manager` o `virsh`, VirtualBox o VMware), descarga la imagen oficial de CentOS Stream 10 y arranca una máquina virtual local.
 
-1. Gestión declarativa de colecciones con Ansible Galaxy (`requirements.yaml`):
+### B. Creación y Operación desde un Usuario Normal sin Privilegios
 
-   Aunque Fedora y EPEL 10 empaquetan esta colección como RPM del sistema, en la administración profesional de infraestructura la mejor práctica es no acoplar tus playbooks al gestor de paquetes del host. Declarar las dependencias en un archivo `requirements.yaml` permite que tu proyecto sea portátil y reproducible en cualquier estación de trabajo o pipeline de CI/CD (independientemente de si corre en Fedora, Debian, Ubuntu o macOS):
+En tu máquina de control con CentOS Stream 10, si accedes inicialmente como `root`, crea inmediatamente un usuario ordinario de trabajo (por ejemplo `estudiante` o tu propio nombre) con privilegios administrativos (`sudo`). Como regla fundamental de seguridad en Linux, **nunca debes operar tu estación de trabajo diaria directamente como `root`**:
 
-   ```bash
-   cat << 'EOF' > requirements.yaml
-   ---
-   collections:
-     - name: ansible.posix
-       version: ">=1.5.0"
-   EOF
-   ```
+```bash
+useradd -m -s /bin/bash estudiante
+passwd estudiante
+usermod -aG wheel estudiante
+```
 
-   Instala las colecciones declaradas en tu entorno local con `ansible-galaxy`:
+Inicia sesión con tu usuario normal:
 
-   ```bash
-   ansible-galaxy collection install -r requirements.yaml
-   ```
+```bash
+su - estudiante
+```
+
+A partir de este momento, **todas las operaciones se ejecutan desde tu usuario normal**, reservando `sudo` exclusivamente para instalar herramientas del sistema local con DNF.
+
+### C. Generación de tu Llave SSH Ed25519 con Frase de Paso
+
+Ansible no utiliza contraseñas interactivas para autenticarse contra los servidores remotos; opera sobre conexiones SSH estándar mediante criptografía asimétrica. No asumas que tu entorno ya tiene llaves generadas.
+
+Genera tu par de llaves criptográficas **Ed25519** protegidas por frase de paso (*passphrase*):
+
+```bash
+ssh-keygen -t ed25519 -C "tu_correo@ejemplo.com"
+```
+
+1. **Ruta del archivo:** Cuando la herramienta te solicite `Enter file in which to save the key (/home/estudiante/.ssh/id_ed25519):`, presiona `Enter` para aceptar la ruta predeterminada.
+1. **Frase de paso (Passphrase):** Cuando te pida `Enter passphrase (empty for no passphrase):`, **escribe una contraseña segura**. Esto cifra tu archivo privado con AES-256 en el disco, asegurando que si alguien copia tu archivo sin autorización, no pueda utilizar tu identidad.
+
+Este comando genera dos archivos en tu directorio `~/.ssh/`:
+
+* `~/.ssh/id_ed25519`: Tu **llave privada** (permisos estrictos `0600`). Es tu secreto criptográfico personal; jamás debes compartirla, transferirla ni subirla a repositorios.
+* `~/.ssh/id_ed25519.pub`: Tu **llave pública** (permisos `0644`). Esta es la que instalarás en los servidores que vas a administrar.
+
+### D. Inicio del Demonio `ssh-agent` y Carga de tu Llave
+
+Al haber protegido tu llave privada con una frase de paso, cada vez que Ansible intentara conectarse por SSH al servidor remoto te solicitaría la contraseña en la terminal. En una automatización de decenas de tareas, esto sería inviable.
+
+Para resolverlo con elegancia y sin relajar la seguridad, Linux incluye **`ssh-agent`**, un servicio en segundo plano que retiene tu llave privada desencriptada en memoria RAM durante tu sesión activa de terminal:
+
+```bash
+# Iniciar el agente SSH en tu sesión actual de la terminal
+eval $(ssh-agent -s)
+
+# Cargar tu llave privada en el agente (ingresa tu frase de paso una sola vez)
+ssh-add ~/.ssh/id_ed25519
+
+# Confirmar que la identidad está cargada en memoria
+ssh-add -l
+```
+
+Verás una salida confirmando que tu llave está lista para ser consumida:
+
+```text
+256 SHA256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx tu_correo@ejemplo.com (ED25519)
+```
+
+### E. El Servidor Objetivo a Administrar e Instalación de tu Llave Pública
+
+Ahora necesitas el **nodo servidor objetivo** con CentOS Stream 10 que vas a aprovisionar y asegurar con Ansible. Puede ser un segundo servidor en Cherry Servers o una segunda VM local.
+
+Para que tu estación de control pueda administrarlo, debes instalar tu llave pública (`~/.ssh/id_ed25519.pub`) en la cuenta `root` del servidor objetivo:
+
+* **Si desplegaste el servidor objetivo en el portal de Cherry Servers:** Copia el contenido de tu llave pública con `cat ~/.ssh/id_ed25519.pub` y pégala en la sección de llaves SSH al crear la instancia.
+* **Si el servidor objetivo ya está activo con acceso temporal por contraseña:** Utiliza el comando estándar `ssh-copy-id`:
+
+  ```bash
+  ssh-copy-id -i ~/.ssh/id_ed25519.pub root@<IP_DEL_SERVIDOR_OBJETIVO>
+  ```
+
+* **Comprobación de acceso:** Prueba la conexión desde tu nodo de control:
+
+  ```bash
+  ssh root@<IP_DEL_SERVIDOR_OBJETIVO>
+  ```
+
+  Gracias a `ssh-agent`, accederás inmediatamente como `root` sin prompts de contraseña. Sal de la sesión remota para regresar a tu entorno de control:
+
+  ```bash
+  exit
+  ```
+
+### F. Instalación de Herramientas en el Nodo de Control (CentOS Stream 10)
+
+En tu estación de control CentOS Stream 10 (operando con tu usuario `estudiante`), instala las herramientas necesarias:
+
+```bash
+# 1. Habilitar repositorio EPEL 10 y complementos DNF
+sudo dnf -y install epel-release dnf-plugins-core
+
+# 2. Instalar Ansible Core, colecciones POSIX y utilidades OpenSSH
+sudo dnf -y install ansible-core ansible-collection-ansible-posix openssh-clients git-core curl jq
+
+# 3. Instalar OpenTofu mediante el instalador oficial RPM
+curl --proto '=https' --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh -o install-opentofu.sh
+sudo bash install-opentofu.sh --install-method rpm
+rm -f install-opentofu.sh
+```
+
+Verifica que las herramientas estén disponibles en tu entorno:
+
+```bash
+ansible --version
+tofu version
+```
+
+### G. Clonar el Repositorio Oficial y Situarse en el Cómo 03
+
+Clona el repositorio de la serie de Cómos e ingresa al directorio de trabajo de este laboratorio:
+
+```bash
+git clone https://gitlab.com/renich/cherry-servers.git
+cd cherry-servers/03-ansible
+```
+
+### H. Gestión Declarativa de Colecciones con Ansible Galaxy (`requirements.yaml`)
+
+Aunque EPEL 10 empaqueta la colección `ansible.posix` como RPM del sistema (`ansible-collection-ansible-posix`), en la administración profesional de infraestructura la mejor práctica es no acoplar tus recetas al gestor de paquetes del host. Declarar las dependencias en un archivo `requirements.yaml` permite que tu proyecto sea portátil y reproducible en cualquier nodo o pipeline de CI/CD:
+
+```bash
+cat << 'EOF' > requirements.yaml
+---
+collections:
+  - name: ansible.posix
+    version: ">=1.5.0"
+EOF
+```
+
+Instala las colecciones declaradas en tu entorno local con `ansible-galaxy`:
+
+```bash
+ansible-galaxy collection install -r requirements.yaml
+```
 
 ---
 
@@ -70,7 +186,7 @@ Siguiendo nuestra filosofía pedagógica **«Manual Primero, Automatización Des
 
 En la administración moderna de infraestructura en la nube existe una distinción crucial entre tu estación de trabajo personal y un servidor remoto automatizado:
 
-1. **En tu estación de trabajo (Fedora Linux):** Operas como un usuario mortal sin privilegios. Utilizas `sudo` estrictamente cuando modificas paquetes o servicios del sistema local (`sudo dnf -y install ...`) para evitar accidentes en tu entorno de trabajo diario.
+1. **En tu estación de control (CentOS Stream 10):** Operas como un usuario mortal sin privilegios (`estudiante`). Utilizas `sudo` estrictamente cuando modificas paquetes o servicios del sistema local (`sudo dnf -y install ...`) para evitar accidentes en tu entorno de trabajo diario.
 1. **En servidores remotos en la nube:** El acceso por contraseña está estrictamente deshabilitado (`PermitRootLogin prohibit-password`). Solo quien posea tu clave criptográfica privada Ed25519 puede abrir una sesión. Crear un usuario intermedio (por ejemplo, `ansible` o `admin`) simplemente para otorgarle privilegios universales sin contraseña en `/etc/sudoers` (`NOPASSWD: ALL`) no aporta seguridad real: es **simulación de seguridad** (*security theater*) que añade consumo de recursos, ruido en los registros del sistema y complejidad innecesaria.
 1. **Verdadero principio de menor privilegio:** En lugar de complicar el transporte de administración, la seguridad real se implementa en los servicios: cada aplicación se ejecuta bajo una cuenta de sistema dedicada sin shell interactiva (`/sbin/nologin`), con permisos estrictos de directorios bajo **FHS 3.0** y confinamiento por **SELinux**. La cuenta `root` es utilizada exclusivamente por el motor de orquestación para construir y vigilar esas fronteras.
 
@@ -84,38 +200,20 @@ A diferencia de otras soluciones tradicionales de orquestación (como Puppet, Ch
 
 Ansible opera bajo el modelo **Push sobre SSH**:
 
-1. Tu estación de trabajo local lee el inventario y el Playbook.
+1. Tu estación de control lee el inventario y el Playbook.
 1. Traduce las tareas declarativas a pequeños módulos independientes en Python.
 1. Transfiere y ejecuta los módulos en el nodo remoto a través de una conexión SSH segura.
 1. Recibe la respuesta en formato JSON estructurado y remueve los archivos temporales.
 
 Para que esto funcione, el único requisito en el servidor gestionado es contar con **Python 3** (que ya viene preinstalado por defecto en la imagen oficial de CentOS Stream 10).
 
-Verifícalo conectándote una única vez por SSH a tu servidor:
-
-```bash
-ssh root@<IP_DEL_SERVIDOR>
-```
-
-Dentro del servidor, comprueba la versión del intérprete:
-
-```bash
-python3 --version
-```
-
-Verás una salida similar a `Python 3.12.x` (o superior). Sal de la sesión remota para regresar a tu terminal local:
-
-```bash
-exit
-```
-
-A partir de este momento, **todas las operaciones se ejecutan desde tu estación de trabajo local**.
+A partir de este momento, **todas las operaciones se ejecutan desde tu estación de control con CentOS Stream 10**.
 
 ---
 
-### Paso B: Configuración del Entorno Local y Verificación Estricta de Huellas SSH
+### Paso B: Configuración del Entorno de Control y Verificación Estricta de Huellas SSH
 
-En tu máquina local, ubícate en el directorio de trabajo del laboratorio y crea el archivo de configuración `ansible.cfg`:
+En tu máquina de control con CentOS Stream 10, ubícate en el directorio de trabajo del laboratorio y crea el archivo de configuración `ansible.cfg`:
 
 ```bash
 cat << 'EOF' > ansible.cfg
@@ -125,10 +223,13 @@ remote_user = root
 host_key_checking = True
 retry_files_enabled = False
 interpreter_python = auto_silent
-stdout_callback = yaml
+private_key_file = ~/.ssh/id_ed25519
 
 [privilege_escalation]
 become = False
+
+[ssh_connection]
+ssh_args = -C -o ControlMaster=auto -o ControlPersist=60s -o IdentitiesOnly=yes
 EOF
 ```
 
@@ -138,7 +239,8 @@ EOF
 * `remote_user = root`: Define la cuenta remota para la sesión SSH. Al operar directamente con la clave Ed25519 de `root`, no utilizamos `sudo` innecesario en el servidor remoto.
 * `host_key_checking = True`: **Seguridad criptográfica estricta.** Mantiene activa la verificación de huellas en `~/.ssh/known_hosts`. Desactivar esta directiva en tutoriales es una mala práctica común que vuelve vulnerable la conexión ante ataques de intermediario (*Man-in-the-Middle* o MITM).
 * `interpreter_python = auto_silent`: Detecta automáticamente la ruta óptima de Python en el servidor remoto sin emitir advertencias molestas.
-* `stdout_callback = yaml`: Formatea la salida de Ansible en la terminal en YAML legible en lugar del JSON compacto por defecto.
+* `private_key_file = ~/.ssh/id_ed25519`: Especifica la ruta de tu llave privada Ed25519, indicándole a Ansible exactamente qué identidad utilizar al conectar.
+* `[ssh_connection] ssh_args`: Habilita multiplexación de conexiones (`ControlMaster`), persistencia de sesión (`ControlPersist=60s`) y añade `-o IdentitiesOnly=yes`. Esta última opción es crítica: si tu agente SSH almacena múltiples identidades, SSH podría intentar cada una sucesivamente hasta exceder el límite de autenticaciones del servidor (`MaxAuthTries`), provocando un error de `Too many authentication failures`. Con `IdentitiesOnly=yes`, SSH presenta únicamente la llave explícita.
 
 #### Mantenimiento de `known_hosts` con `ssh-keyscan` y `ssh-keygen`
 
@@ -398,7 +500,7 @@ cat << 'EOF' > templates/index.html.j2
 </head>
 <body>
     <div class="container">
-        <div class="status-badge">● Sistema Idempotente y Convergente</div>
+        <div class="status-badge">● Sistema Idempotente y Convergente &bull; Versión {{ webapp_version }}</div>
         <h1>Servidor Desplegado con Ansible</h1>
         <p class="subtitle">
             Este nodo fue configurado y asegurado de forma totalmente declarativa mediante Ansible en
@@ -408,27 +510,27 @@ cat << 'EOF' > templates/index.html.j2
         <div class="grid">
             <div class="item">
                 <div class="label">Nombre de Host</div>
-                <div class="value">{{ ansible_hostname }}</div>
+                <div class="value">{{ ansible_facts['hostname'] }}</div>
             </div>
             <div class="item">
                 <div class="label">Distribución</div>
-                <div class="value">{{ ansible_distribution }} {{ ansible_distribution_version }}</div>
+                <div class="value">{{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}</div>
             </div>
             <div class="item">
                 <div class="label">Kernel</div>
-                <div class="value">{{ ansible_kernel }}</div>
+                <div class="value">{{ ansible_facts['kernel'] }}</div>
             </div>
             <div class="item">
                 <div class="label">Arquitectura y CPUs</div>
-                <div class="value">{{ ansible_architecture }} ({{ ansible_processor_vcpus }} vCPUs)</div>
+                <div class="value">{{ ansible_facts['architecture'] }} ({{ ansible_facts['processor_vcpus'] }} vCPUs)</div>
             </div>
             <div class="item">
                 <div class="label">Memoria Total</div>
-                <div class="value">{{ ansible_memtotal_mb }} MB</div>
+                <div class="value">{{ ansible_facts['memtotal_mb'] }} MB</div>
             </div>
             <div class="item">
                 <div class="label">Dirección IPv4</div>
-                <div class="value">{{ ansible_default_ipv4.address }}</div>
+                <div class="value">{{ ansible_facts['default_ipv4']['address'] }}</div>
             </div>
         </div>
 
@@ -788,7 +890,7 @@ cherry-node   : ok=16   changed=13   unreachable=0    failed=0    skipped=0
 
 Observa que `changed=13`: Ansible detectó que los paquetes no estaban instalados, los usuarios y directorios no existían y los archivos faltaban, por lo que aplicó los cambios necesarios para alcanzar el estado deseado.
 
-Ahora realiza la prueba de verificación HTTP desde tu estación de trabajo:
+Ahora realiza la prueba de verificación HTTP desde tu estación de control:
 
 ```bash
 curl -s http://<IP_DEL_SERVIDOR> | grep "Servidor Desplegado con Ansible"

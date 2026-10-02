@@ -114,27 +114,27 @@
         <div class="grid">
             <div class="item">
                 <div class="label">Nombre de Host</div>
-                <div class="value">{{ ansible_hostname }}</div>
+                <div class="value">{{ ansible_facts['hostname'] }}</div>
             </div>
             <div class="item">
                 <div class="label">Distribución</div>
-                <div class="value">{{ ansible_distribution }} {{ ansible_distribution_version }}</div>
+                <div class="value">{{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}</div>
             </div>
             <div class="item">
                 <div class="label">Kernel</div>
-                <div class="value">{{ ansible_kernel }}</div>
+                <div class="value">{{ ansible_facts['kernel'] }}</div>
             </div>
             <div class="item">
                 <div class="label">Arquitectura y CPUs</div>
-                <div class="value">{{ ansible_architecture }} ({{ ansible_processor_vcpus }} vCPUs)</div>
+                <div class="value">{{ ansible_facts['architecture'] }} ({{ ansible_facts['processor_vcpus'] }} vCPUs)</div>
             </div>
             <div class="item">
                 <div class="label">Memoria Total</div>
-                <div class="value">{{ ansible_memtotal_mb }} MB</div>
+                <div class="value">{{ ansible_facts['memtotal_mb'] }} MB</div>
             </div>
             <div class="item">
                 <div class="label">Dirección IPv4</div>
-                <div class="value">{{ ansible_default_ipv4.address }}</div>
+                <div class="value">{{ ansible_facts['default_ipv4']['address'] }}</div>
             </div>
         </div>
 
