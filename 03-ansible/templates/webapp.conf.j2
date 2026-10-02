@@ -1,0 +1,24 @@
+# =============================================================================
+# Configuración de Nginx para Servicio Web FHS 3.0 (/srv/webapp)
+# Gestionado de forma declarativa con Ansible en CentOS Stream 10
+# =============================================================================
+
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+
+    root /srv/webapp/public;
+    index index.html;
+
+    server_tokens off;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    location = /favicon.ico {
+        log_not_found off;
+        access_log off;
+    }
+}

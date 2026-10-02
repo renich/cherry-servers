@@ -1,0 +1,29 @@
+# =============================================================================
+# Archivo de Variables de Ejemplo (terraform.tfvars.example)
+# =============================================================================
+# Copia este archivo a 'terraform.tfvars' y completa los valores con tus credenciales.
+# NOTA: Nunca subas tu 'terraform.tfvars' real a Git.
+
+# 1. Tu API Token de Cherry Servers (obtenido en el portal: Configuración -> API Keys)
+cherry_auth_token = "TU_API_TOKEN_AQUI"
+
+# 2. El ID numérico de tu proyecto en Cherry Servers
+project_id = 123456
+
+# 3. Región geográfica (LT-Siauliai recomendada por costo y disponibilidad)
+region = "LT-Siauliai"
+
+# 4. Plan de cómputo (Cloud VPS 1: 1 vCore/1 GB RAM/20GB SSD, ~$0.015 EUR/hr)
+server_plan = "B1-1-1gb-20s-shared"
+
+# 5. Sistema operativo base (CentOS Stream 10 de 64 bits)
+server_image = "centos_stream_10_64bit"
+
+# 6. Nombre FQDN estructurado para el servidor
+server_name = "0.ansible.linenes.tld"
+
+# 7. Contenido de tu clave pública SSH Ed25519 (~/.ssh/id_ed25519.pub)
+ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... tu_correo@ejemplo.com"
+
+# 8. Activar instancia Spot con descuento (true/false)
+spot_instance = false

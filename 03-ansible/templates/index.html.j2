@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Servidor Automatizado con Ansible — Cómo 03</title>
+    <style>
+        :root {
+            --bg-color: #1e1e2e;
+            --card-bg: #181825;
+            --text-color: #cdd6f4;
+            --subtext: #a6adc8;
+            --accent: #f38ba8;
+            --accent-green: #a6e3a1;
+            --accent-blue: #89b4fa;
+            --border: #313244;
+        }
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2.5rem;
+            max-width: 680px;
+            width: 100%;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+        h1 {
+            color: var(--accent);
+            margin-top: 0;
+            font-size: 1.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        p.subtitle {
+            color: var(--subtext);
+            margin-bottom: 2rem;
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+        .status-badge {
+            display: inline-block;
+            background: rgba(166, 227, 161, 0.15);
+            color: var(--accent-green);
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(166, 227, 161, 0.3);
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .item {
+            background-color: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border);
+            padding: 1rem;
+            border-radius: 8px;
+        }
+        .label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--subtext);
+            margin-bottom: 0.25rem;
+        }
+        .value {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--accent-blue);
+            word-break: break-all;
+        }
+        .footer {
+            border-top: 1px solid var(--border);
+            padding-top: 1.5rem;
+            font-size: 0.85rem;
+            color: var(--subtext);
+            text-align: center;
+        }
+        .footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="status-badge">● Sistema Idempotente y Convergente</div>
+        <h1>Servidor Desplegado con Ansible</h1>
+        <p class="subtitle">
+            Este nodo fue configurado y asegurado de forma totalmente declarativa mediante Ansible en
+            <strong>CentOS Stream 10</strong> sobre infraestructura de <strong>Cherry Servers</strong>.
+        </p>
+
+        <div class="grid">
+            <div class="item">
+                <div class="label">Nombre de Host</div>
+                <div class="value">{{ ansible_hostname }}</div>
+            </div>
+            <div class="item">
+                <div class="label">Distribución</div>
+                <div class="value">{{ ansible_distribution }} {{ ansible_distribution_version }}</div>
+            </div>
+            <div class="item">
+                <div class="label">Kernel</div>
+                <div class="value">{{ ansible_kernel }}</div>
+            </div>
+            <div class="item">
+                <div class="label">Arquitectura y CPUs</div>
+                <div class="value">{{ ansible_architecture }} ({{ ansible_processor_vcpus }} vCPUs)</div>
+            </div>
+            <div class="item">
+                <div class="label">Memoria Total</div>
+                <div class="value">{{ ansible_memtotal_mb }} MB</div>
+            </div>
+            <div class="item">
+                <div class="label">Dirección IPv4</div>
+                <div class="value">{{ ansible_default_ipv4.address }}</div>
+            </div>
+        </div>
+
+        <div class="footer">
+            Cómo 03 — Serie Educativa de Infraestructura en Linux &bull;
+            <a href="https://gitlab.com/renich/cherry-servers" target="_blank" rel="noopener">Repositorio en GitLab</a>
+        </div>
+    </div>
+</body>
+</html>

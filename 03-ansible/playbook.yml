@@ -1,0 +1,129 @@
+---
+- name: Aprovisionar y asegurar servidor web FHS 3.0 en CentOS Stream 10
+  hosts: webservers
+  gather_facts: true
+
+  vars:
+    webapp_service_user: "webapp"
+    webapp_service_group: "webapp"
+    webapp_root_dir: "/srv/webapp"
+    webapp_public_dir: "/srv/webapp/public"
+    webapp_version: "1.0.0"
+    required_packages:
+      - epel-release
+      - nginx
+      - firewalld
+      - chrony
+      - curl
+      - jq
+
+  tasks:
+    - name: Instalar paquetes esenciales del sistema y repositorio EPEL 10
+      ansible.builtin.dnf:
+        name: "{{ required_packages }}"
+        state: present
+
+    - name: Garantizar que el servicio de sincronización de tiempo Chrony esté activo
+      ansible.builtin.systemd_service:
+        name: chronyd
+        state: started
+        enabled: true
+
+    - name: Crear grupo de sistema dedicado bajo estándar FHS 3.0
+      ansible.builtin.group:
+        name: "{{ webapp_service_group }}"
+        state: present
+        system: true
+
+    - name: Crear usuario de sistema sin shell interactiva
+      ansible.builtin.user:
+        name: "{{ webapp_service_user }}"
+        group: "{{ webapp_service_group }}"
+        shell: /sbin/nologin
+        home: "{{ webapp_root_dir }}"
+        create_home: true
+        system: true
+        state: present
+
+    - name: Crear directorio base del servicio bajo estándar FHS 3.0
+      ansible.builtin.file:
+        path: "{{ webapp_root_dir }}"
+        state: directory
+        owner: "{{ webapp_service_user }}"
+        group: "{{ webapp_service_group }}"
+        mode: '0750'
+        seuser: system_u
+        setype: httpd_sys_content_t
+
+    - name: Crear estructura de directorios web con permisos 0750 y contexto SELinux
+      ansible.builtin.file:
+        path: "{{ webapp_public_dir }}"
+        state: directory
+        owner: "{{ webapp_service_user }}"
+        group: "{{ webapp_service_group }}"
+        mode: '0750'
+        seuser: system_u
+        setype: httpd_sys_content_t
+
+    - name: Desplegar panel informativo dinámico HTML
+      ansible.builtin.template:
+        src: index.html.j2
+        dest: "{{ webapp_public_dir }}/index.html"
+        owner: "{{ webapp_service_user }}"
+        group: "{{ webapp_service_group }}"
+        mode: '0640'
+        seuser: system_u
+        setype: httpd_sys_content_t
+
+    - name: Desplegar configuración de bloque de servidor Nginx
+      ansible.builtin.template:
+        src: webapp.conf.j2
+        dest: /etc/nginx/conf.d/webapp.conf
+        owner: root
+        group: root
+        mode: '0644'
+        seuser: system_u
+        setype: httpd_config_t
+      notify: Recargar servicio Nginx
+
+    - name: Validar sintaxis global de Nginx tras desplegar bloque de servidor
+      ansible.builtin.command:
+        cmd: /usr/sbin/nginx -t
+      changed_when: false
+
+    - name: Agregar usuario nginx al grupo complementario de webapp para traversal de directorios
+      ansible.builtin.user:
+        name: nginx
+        groups: "{{ webapp_service_group }}"
+        append: true
+      notify: Recargar servicio Nginx
+
+    - name: Garantizar postura de SELinux en modo Enforcing con política targeted
+      ansible.posix.selinux:
+        policy: targeted
+        state: enforcing
+
+    - name: Asegurar que el cortafuegos firewalld esté activo y habilitado
+      ansible.builtin.systemd_service:
+        name: firewalld
+        state: started
+        enabled: true
+
+    - name: Habilitar servicio HTTP en firewalld de manera permanente e inmediata
+      ansible.posix.firewalld:
+        service: http
+        permanent: true
+        immediate: true
+        state: enabled
+
+    - name: Asegurar que el servicio Nginx esté iniciado y habilitado en el arranque
+      ansible.builtin.systemd_service:
+        name: nginx
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Recargar servicio Nginx
+      ansible.builtin.systemd_service:
+        name: nginx
+        state: reloaded
