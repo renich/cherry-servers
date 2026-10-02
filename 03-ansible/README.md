@@ -43,7 +43,26 @@ Siguiendo nuestra filosofía pedagógica **«Manual Primero, Automatización Des
    sudo dnf -y install ansible-core ansible-collection-ansible-posix opentofu curl jq openssh-clients
    ```
 
-   > **Nota sobre Ansible en Fedora:** El paquete `ansible-core` provee el motor ligero de ejecución CLI (`ansible`, `ansible-playbook`). La colección `ansible.posix` incluye los módulos esenciales para gestionar cortafuegos (`firewalld`) y políticas de seguridad (`selinux`).
+   > **Disponibilidad del paquete RPM:** El paquete `ansible-collection-ansible-posix` está disponible oficialmente tanto en **Fedora Linux** como en **EPEL 10** para CentOS Stream 10 (`ansible-collection-ansible-posix-2.2.1`). Puedes instalarlo directamente con DNF en tu estación de trabajo.
+
+1. Gestión declarativa de colecciones con Ansible Galaxy (`requirements.yml`):
+
+   Aunque Fedora y EPEL 10 empaquetan esta colección como RPM del sistema, en la administración profesional de infraestructura la mejor práctica es no acoplar tus playbooks al gestor de paquetes del host. Declarar las dependencias en un archivo `requirements.yml` permite que tu proyecto sea portátil y reproducible en cualquier estación de trabajo o pipeline de CI/CD (independientemente de si corre en Fedora, Debian, Ubuntu o macOS):
+
+   ```bash
+   cat << 'EOF' > requirements.yml
+   ---
+   collections:
+     - name: ansible.posix
+       version: ">=1.5.0"
+   EOF
+   ```
+
+   Instala las colecciones declaradas en tu entorno local con `ansible-galaxy`:
+
+   ```bash
+   ansible-galaxy collection install -r requirements.yml
+   ```
 
 ---
 
