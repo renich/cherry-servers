@@ -4,7 +4,7 @@
 >
 > * **Versión:** `v1.0.0`
 > * **Fecha:** `2026-08-19`
-> * **Rama de Git:** [`02-caddy-podman`](https://gitlab.com/renich/cherry-servers/-/tree/02-caddy-podman)
+> * **Rama de Git:** [`master/02-caddy-podman`](https://gitlab.com/renich/cherry-servers/-/tree/master/02-caddy-podman)
 > * **Licencia:** [`GFDL-1.3-or-later`](../LICENSE)
 > * **Tipo de instancia:** Cloud VPS 1 (Gen 2: 1 vCPU/1 GB RAM/20GB SSD) o Cloud VPS 2
 > * **Costo por hora:** ~$0.015 EUR/hora (~$0.016 USD/hora)

@@ -4,7 +4,7 @@
 >
 > * **Versión:** `v1.0.0`
 > * **Fecha:** `2026-08-18`
-> * **Rama de Git:** [`01-luanti-tofu`](https://gitlab.com/renich/cherry-servers/-/tree/01-luanti-tofu)
+> * **Rama de Git:** [`master/01-luanti-tofu`](https://gitlab.com/renich/cherry-servers/-/tree/master/01-luanti-tofu)
 > * **Licencia:** [`GFDL-1.3-or-later`](../LICENSE)
 > * **Tipo de instancia:** Cloud VPS 2 (Gen 2: 2 vCPU/2 GB RAM/40GB SSD)
 > * **Costo por hora:** ~$0.033 EUR/hora (~$0.035 USD/hora)

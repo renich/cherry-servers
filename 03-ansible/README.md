@@ -4,7 +4,7 @@
 >
 > * **Versión:** `v1.0.0`
 > * **Fecha:** `2026-10-02`
-> * **Rama de Git:** [`03-ansible`](https://gitlab.com/renich/cherry-servers/-/tree/03-ansible)
+> * **Rama de Git:** [`master/03-ansible`](https://gitlab.com/renich/cherry-servers/-/tree/master/03-ansible)
 > * **Licencia:** [`GFDL-1.3-or-later`](../LICENSE)
 > * **Tipo de instancia:** Cloud VPS 1 (Gen 2: 1 vCore/1 GB RAM/20GB SSD)
 > * **Costo por hora:** ~$0.015 EUR/hora (~$0.017 USD/hora)
