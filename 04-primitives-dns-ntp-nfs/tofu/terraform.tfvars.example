@@ -1,0 +1,14 @@
+# =============================================================================
+# Archivo de Ejemplo: Copia este archivo a terraform.tfvars y coloca tus datos
+# =============================================================================
+
+cherry_auth_token = "TU_API_TOKEN_AQUI"
+project_id        = 123456
+ssh_public_key    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... tu_correo@ejemplo.com"
+server_name       = "0.primitivas.linenes.tld"
+client_name       = "1.primitivas.linenes.tld"
+dns_domain        = "linenes.tld"
+server_image      = "centos_stream_10_64bit"
+spot_instance     = false
+# server_plan      = "B1-1-1gb-20s-shared" # Cloud VPS 1 por defecto (~$0.015 EUR/hr por nodo, ~$0.030 EUR/hr total)
+# enable_bootstrap = true # Cambiar a false si deseas aprovisionar las máquinas vacías para la práctica manual
