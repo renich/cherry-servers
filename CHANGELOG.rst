@@ -15,7 +15,22 @@ Compare: `unreleased diff`_.
 
 .. rubric:: Added
 
-* Preparación del marco operativo para el Cómo 05 con Garage S3 distribuido.
+* Preparación del alcance técnico para el Cómo 06 de Kubernetes ligero K3s en un nodo.
+
+`[0.5.0]`_ - 2026-11-24
+-----------------------
+
+.. rubric:: Added
+
+* Implementación completa del Cómo 05 en ``05-garage-s3/`` con clúster distribuido **Garage v2.6.0** en tres zonas ``z1``, ``z2`` y ``z3`` sobre Podman Quadlets, aislamiento Firewalld ``internal`` frente a ``public``, FHS 3.0 bajo ``/srv/garage`` y proxy inverso Caddy con Let's Encrypt sobre ``sslip.io``.
+* Scripts idempotentes ``05-garage-s3/scripts/bootstrap-node0.bash`` y ``05-garage-s3/scripts/bootstrap-peer.bash`` con convergencia asíncrona en ``garage-cluster-init.service``, generación de credenciales ``0600`` y guardia ``%ghost`` para ``dnf-automatic``.
+* Regla persistente de SELinux ``httpd_log_t`` sobre ``/var/log/caddy(/.*)?`` y validación sin privilegios mediante ``runuser -u caddy -- caddy validate`` para operación limpia en modo Enforcing.
+* Soporte en ``05-garage-s3/tofu/`` para reutilización segura de llaves SSH existentes en Cherry Servers mediante ``ssh_key_id`` sin riesgo de eliminación en ``tofu destroy``.
+* Guía completa en ``05-garage-s3/README.rst`` verificada en vivo con ``rclone`` HTTPS, servidor web estático y prueba de caos 2 de 3, acompañada de banners 16:9 ``hero.png`` y ``telegram-banner.png``.
+
+.. rubric:: Changed
+
+* Actualización de la tabla de serie en ``README.rst`` marcando el Cómo 05 como publicado con 5 módulos activos.
 
 `[0.4.0]`_ - 2026-11-24
 -----------------------
@@ -71,7 +86,8 @@ Compare: `unreleased diff`_.
 * Implementación completa del Cómo 01 en ``01-luanti-tofu/`` con servidor dedicado de Luanti mediante COPR y OpenTofu sobre CentOS Stream 10.
 * Banners gráficos ``hero.png`` y ``telegram-banner.png`` para el Cómo 01.
 
-.. _unreleased diff: https://gitlab.com/renich/cherry-servers/-/compare/v0.4.0...master
+.. _unreleased diff: https://gitlab.com/renich/cherry-servers/-/compare/v0.5.0...master
+.. _[0.5.0]: https://gitlab.com/renich/cherry-servers/-/releases/v0.5.0
 .. _[0.4.0]: https://gitlab.com/renich/cherry-servers/-/releases/v0.4.0
 .. _[0.3.0]: https://gitlab.com/renich/cherry-servers/-/releases/v0.3.0
 .. _[0.2.0]: https://gitlab.com/renich/cherry-servers/-/releases/v0.2.0

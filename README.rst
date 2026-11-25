@@ -100,9 +100,9 @@ Matriz de Cómos y Presupuesto
      - **$0.06 USD**
    * - 05
      - Almacenamiento S3 con Garage
-     - ``05-garage-s3``
-     - Próximamente
-     - 3x Small/Spot VMs
+     - `05-garage-s3 <05-garage-s3/>`__
+     - Publicado
+     - 3x Cloud VPS 1, 1 vCPU y 1 GB RAM
      - ~$0.045 EUR/hr
      - 3.0 hrs
      - **$0.14 USD**
@@ -149,7 +149,7 @@ Matriz de Cómos y Presupuesto
    * - Total
      - Serie Completa
      - 10 Cómos
-     - 4 publicados
+     - 5 publicados
      - Toda la serie
      - Variable
      - ~23 hrs
