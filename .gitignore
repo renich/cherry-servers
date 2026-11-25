@@ -27,3 +27,6 @@ AGENTS.md
 *.swp
 *.swo
 *~
+
+# Local Ansible caches
+.ansible/
