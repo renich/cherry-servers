@@ -20,6 +20,15 @@ hasta el despliegue de clústeres de Kubernetes con K3s e infraestructura de có
 estandarizando sobre **CentOS Stream 10** con **SELinux en modo Enforcing** y cumplimiento
 estricto del estándar **FHS 3.0** bajo ``/srv`` o ``/var/lib``.
 
+¿Por qué CentOS Stream 10?
+--------------------------
+
+Existe bastante desinformación y ruido alrededor de la idea de que *«CentOS murió»*. En términos técnicos reales, el escenario actual con **CentOS Stream** es mucho más sólido y favorable para la comunidad de software libre que el modelo anterior:
+
+* **De reconstrucción tardía y cerrada a desarrollo abierto:** El viejo CentOS Linux era una reconstrucción posterior a puerta cerrada sin vía real para contribuir correcciones ni ver cambios antes de su llegada. Hoy, `CentOS Stream <https://www.centos.org/centos-stream/>`__ es la rama pública de entrega continua sobre la que se construye el siguiente lanzamiento menor de Red Hat Enterprise Linux 10.
+* **Estabilidad empresarial real durante todo el ciclo mayor:** Conserva garantías de estabilidad de ABI/API a lo largo de la rama mayor 10, política completa de **SELinux en modo Enforcing**, soporte moderno de **DNF5**, **Podman Quadlets** y **systemd**, y acceso de primera mano a las actualizaciones de seguridad.
+* **Ecosistema listo para cualquier carga de trabajo:** Junto con los repositorios **CRB** y `EPEL 10 <https://docs.fedoraproject.org/en-US/epel/>`__, CentOS Stream 10 te permite desplegar desde servidores de juegos, proxies inversos con TLS automático y automatización con Ansible hasta almacenamiento S3 distribuido, clústeres Kubernetes e infraestructura OpenStack.
+
 Principios Fundamentales
 ------------------------
 
@@ -183,7 +192,18 @@ Estándares de Documentación y Verificación
 
 * **Justificación de reStructuredText:** Este proyecto es 100% libre y de código abierto. La documentación oficial del Kernel de Linux estandariza sobre reStructuredText con Sphinx; si es el estándar del Kernel de Linux, es el estándar para toda la documentación pública del repositorio.
 * **Uniformidad en** ``.rst`` **:** Tanto la documentación raíz como `CHANGELOG.rst <CHANGELOG.rst>`__ y cada guía ``README.rst`` dentro de los Cómos se redactan íntegramente en reStructuredText con sangría de 3 espacios en directivas.
-* **Puerta de calidad automatizada:** Ejecuta ``make check`` en la raíz del repositorio para validar formato de OpenTofu, sintaxis ``tofu validate``, reglas de ``crstlint`` y ``rstcheck``, ``shellcheck`` en scripts ``.bash``, ``ansible-lint``, higiene de enlaces/activos y estado limpio sin recursos activos en ``terraform.tfstate``.
+* **Puerta de calidad automatizada:** Ejecuta ``make check`` en la raíz del repositorio para validar formato de OpenTofu, sintaxis ``tofu validate``, evaluación empírica de plantillas ``templatefile()``, reglas de ``crstlint`` y ``rstcheck``, ``shellcheck`` en scripts ``.bash``, ``ansible-lint``, higiene de enlaces/activos y estado limpio sin recursos activos en ``terraform.tfstate``.
+
+Referencias Oficiales de la Serie
+---------------------------------
+
+* `CentOS Stream <https://www.centos.org/centos-stream/>`__: Distribución empresarial abierta y base de toda la serie.
+* `EPEL 10 en Fedora Docs <https://docs.fedoraproject.org/en-US/epel/>`__: Paquetes adicionales mantenidos por la comunidad de Fedora para Enterprise Linux.
+* `Guía oficial de SELinux en EL10 <https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/secure-getting_started_with_selinux>`__: Política dirigida, contextos, booleanos y solución de denegaciones AVC.
+* `Estándar FHS 3.0 <https://refspecs.linuxfoundation.org/FHS_3.0/fhs/index.html>`__: Convenciones de jerarquía de directorios en Linux bajo ``/srv``, ``/var/lib`` y ``/etc``.
+* `Documentación de Firewalld <https://firewalld.org/documentation/>`__: Segmentación dinámica de zonas sobre ``nftables``.
+* `Documentación de OpenTofu <https://opentofu.org/docs/>`__: Infraestructura como Código declarativa y libre.
+* `Documentación de Cherry Servers <https://docs.cherryservers.com/>`__: API, proyectos, llaves SSH y despliegue de instancias.
 
 Licencia
 --------

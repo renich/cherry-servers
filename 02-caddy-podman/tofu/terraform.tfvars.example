@@ -1,14 +1,16 @@
 # =============================================================================
-# Archivo de Ejemplo: Copia este archivo a terraform.tfvars y coloca tus datos
+# Archivo de Ejemplo: copia este archivo a terraform.tfvars, protégelo con
+# chmod 600 terraform.tfvars y nunca lo subas a Git.
 # =============================================================================
 
 cherry_auth_token = "TU_API_TOKEN_DE_CHERRY_SERVERS"
 project_id        = 123456
-ssh_public_key    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... tu_correo@dominio.com"
+ssh_public_key    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... tu_correo@ejemplo.com"
+# ssh_key_id      = "20003" # Descomenta si tu clave ya está registrada en Cherry Servers y deja ssh_public_key vacío
+region            = "LT-Siauliai"
 server_name       = "0.caddy.linenes.tld"
-vault_domain      = "auto" # "auto" asigna <IP>.sslip.io con TLS de Let's Encrypt sin tocar DNS, o pon tu dominio propio
+vault_domain      = "auto" # "auto" asigna tu IP pública con .sslip.io y Let's Encrypt, o indica tu dominio propio
 server_image      = "centos_stream_10_64bit"
 spot_instance     = false
 # server_plan     = "B1-1-1gb-20s-shared" # Cloud VPS 1 por defecto (~$0.015 EUR/hr) o "B2-2-2gb-40s-shared" (Cloud VPS 2)
-# enable_bootstrap = true # Cambiar a false si deseas aprovisionar la máquina vacía para la práctica manual
-
+# enable_bootstrap = true # Cambia a false si deseas aprovisionar la máquina vacía para la práctica manual

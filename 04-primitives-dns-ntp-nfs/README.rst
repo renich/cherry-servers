@@ -14,7 +14,7 @@ Cómo desplegar las primitivas de red y almacenamiento DNS, NTP y NFSv4 en CentO
 
 ¡Hola! 👋
 
-Te doy una calurosa bienvenida al **cuarto Cómo** de nuestra serie práctica de infraestructura empresarial y administración de sistemas en Linux para la comunidad de software libre de Latinoamérica y de habla hispana.
+Te doy una calurosa bienvenida al **cuarto Cómo** de esta serie práctica de infraestructura empresarial y administración de sistemas en Linux para la comunidad de software libre de Latinoamérica y de habla hispana.
 
 En los tres primeros laboratorios aprendiste a construir y automatizar servicios sobre un único servidor: desplegaste un motor de juegos voxel con **Luanti** en el Cómo 01, publicaste aplicaciones en contenedores aislados con **Podman Quadlets y Caddy** en el Cómo 02 y dominaste la gestión declarativa e idempotente de configuraciones con **Ansible** en el Cómo 03.
 
@@ -24,20 +24,22 @@ A partir de este momento das el salto hacia los **sistemas distribuidos multi-no
 #. **Sincronización de tiempo de precisión con Chrony y NTP:** Los protocolos modernos de seguridad y consenso distribuido como certificados TLS, Kerberos, Raft en Kubernetes, CRDTs en Garage S3 y correlación de bitácoras en ``journald`` fallan de forma crítica si los relojes de tus servidores difieren entre sí. Configurarás tu propio servidor NTP de estrato interno para mantener todos tus nodos sincronizados al milisegundo.
 #. **Almacenamiento compartido en red con NFSv4.2 puro:** Aprenderás a exportar y montar sistemas de archivos compartidos a través de la red bajo el estándar **FHS 3.0** en ``/srv/nfs/compartido``, operando exclusivamente sobre **NFSv4.2** con un único puerto TCP ``2049``, sin los antiguos demonios inseguros ``rpcbind`` ni ``rpc.statd`` de NFSv3, y protegido de principio a fin por **SELinux en modo Enforcing** con contexto ``nfs_t`` y aislamiento de privilegios ``root_squash``.
 
-Siguiendo nuestra filosofía pedagógica **«Manual Primero, Automatización Después»**, primero construirás y verificarás paso a paso estas tres primitivas entre dos servidores conectados por red privada vía SSH, y posteriormente automatizarás el despliegue completo de la topología multi-nodo con un solo comando mediante **OpenTofu**.
+Si todavía escuchas el rumor de que «CentOS murió», conviene despejarlo con hechos de ingeniería: lejos de ser un clon tardío y cerrado como el antiguo CentOS Linux, **CentOS Stream 10** es la rama abierta de entrega continua previa a RHEL 10. Te brinda estabilidad de ABI y API durante todo el ciclo mayor, contribución transparente, **SELinux en modo Enforcing** por defecto y paquetes empresariales mantenidos para BIND 9, Chrony y NFSv4.2 puro directamente desde BaseOS y AppStream.
+
+Siguiendo la filosofía pedagógica **«Manual Primero, Automatización Después»**, primero construirás y verificarás paso a paso estas tres primitivas entre dos servidores conectados por red privada vía SSH, y después automatizarás el despliegue completo de la topología multi-nodo con un solo comando mediante **OpenTofu**.
 
 1. Prerrequisitos del Laboratorio
 =================================
 
 Para realizar esta práctica trabajarás con **dos servidores con CentOS Stream 10**:
 
-* **Nodo 0, Servidor de Primitivas** ``0.primitivas.linenes.tld`` **:** Actuará como servidor autoritativo DNS con BIND 9, servidor maestro de tiempo NTP con Chrony y servidor de almacenamiento compartido NFSv4.2.
-* **Nodo 1, Cliente de Verificación** ``1.primitivas.linenes.tld`` **:** Consumirá el DNS interno para resolver nombres, sincronizará su reloj contra ``ntp.linenes.tld`` y montará el almacenamiento compartido desde ``nfs.linenes.tld``.
+* **Nodo 0, Servidor de Primitivas** ``0.primitivas.linenes.tld``: Actuará como servidor autoritativo DNS con BIND 9, servidor maestro de tiempo NTP con Chrony y servidor de almacenamiento compartido NFSv4.2.
+* **Nodo 1, Cliente de Verificación** ``1.primitivas.linenes.tld``: Consumirá el DNS interno para resolver nombres, sincronizará su reloj contra ``ntp.linenes.tld`` y montará el almacenamiento compartido desde ``nfs.linenes.tld``.
 
 A. Tu Saldo de Regalo de $20 USD en Cherry Servers
 --------------------------------------------------
 
-Para que puedas desplegar ambos servidores en la nube y practicar con infraestructura real sin costo de tu bolsillo, contamos con el patrocinio directo de **Cherry Servers** para nuestra comunidad:
+Para que puedas desplegar ambos servidores en la nube y practicar con infraestructura real sin costo de tu bolsillo, la comunidad cuenta con el patrocinio directo de **Cherry Servers**:
 
 * **Regístrate aquí:** `Portal de bienvenida de Cherry Servers con $20 USD de crédito <https://portal.cherryservers.com/register?promo_code=LinuxEnEspanol>`__
 * **Código promocional:** ``LinuxEnEspanol``
@@ -57,7 +59,7 @@ Asegúrate de contar con tu llave criptográfica **Ed25519** en ``~/.ssh/id_ed25
    ssh-keygen -t ed25519 -C "tu_correo@ejemplo.com"
 
    # Inicia el agente SSH en tu sesión actual y carga tu llave privada:
-   eval $(ssh-agent -s)
+   eval "$(ssh-agent -s)"
    ssh-add ~/.ssh/id_ed25519
    ssh-add -l
 
@@ -101,15 +103,22 @@ En la nube de Cherry Servers, cada instancia **Cloud VPS** se aprovisiona autom�
 * ``eth0``: Interfaz conectada a internet con tu **dirección IPv4 pública**.
 * ``ens4``: Interfaz conectada a la **VLAN privada interna** de tu proyecto en el rango privado RFC 1918 ``10.x.x.0/24``, ideal para el tráfico interno entre tus servidores sin salir a internet.
 
-Primero, conéctate por SSH a ambos servidores desde tu estación de trabajo para identificar sus direcciones IP privadas internas.
+Antes de abrir tus sesiones SSH, obtén las direcciones IPv4 públicas de ambos servidores:
 
-En una pestaña de tu terminal, conéctate al **Nodo 0**:
+* **En el portal de Cherry Servers:** Abre tu proyecto y copia el valor de la columna **Primary IP** correspondiente a cada instancia.
+* **En máquinas virtuales locales:** Consulta la dirección IP asignada dentro de cada máquina virtual ejecutando ``ip -4 -o addr show scope global``.
+
+En tu estación de trabajo, exporta ambas direcciones en variables de entorno sustituyendo las IP de ejemplo por las tuyas y conéctate al **Nodo 0**:
 
 .. code-block:: bash
 
+   # Ejecuta en tu estación de trabajo con las IP públicas reales de tus servidores
+   export IP_PUBLICA_NODO_0="84.32.110.69"
+   export IP_PUBLICA_NODO_1="84.32.149.179"
+
    ssh "root@${IP_PUBLICA_NODO_0}"
 
-Configura su nombre de host canónico y consulta sus interfaces de red y el estado de SELinux:
+Ya dentro del **Nodo 0**, configura su nombre de host canónico y consulta sus interfaces de red y el estado de SELinux:
 
 .. code-block:: bash
 
@@ -125,12 +134,12 @@ Observa la salida de ``ip -4 -o addr show scope global``:
    2: eth0    inet 84.32.110.69/32 scope global noprefixroute eth0
    3: ens4    inet 10.198.141.17/24 brd 10.198.141.255 scope global noprefixroute ens4
 
-Toma nota de la dirección IP privada de ``ens4``, que en nuestro ejemplo es ``10.198.141.17``, y de los primeros tres octetos de tu subred privada ``10.198.141``. Si haces lo mismo en el **Nodo 1**, verás que tiene su propia IP en la misma subred privada, por ejemplo ``10.198.141.33``.
+Toma nota de la dirección IP privada de ``ens4``, que en este ejemplo es ``10.198.141.17``, y de los primeros tres octetos de tu subred privada ``10.198.141``. Si ejecutas el mismo comando en el **Nodo 1**, verás que posee su propia IP dentro de la misma subred privada, por ejemplo ``10.198.141.33``.
 
 .. important::
-   A lo largo de esta guía utilizarás ``10.198.141.17`` como referencia para el **Nodo 0** y ``10.198.141.33`` para el **Nodo 1** en la subred ``10.198.141.0/24`` y zona inversa ``141.198.10.in-addr.arpa``. Sustituye estos valores por las direcciones IP privadas que Cherry Servers haya asignado a tus instancias.
+   A lo largo de esta guía verás ``10.198.141.17`` como ejemplo para el **Nodo 0** y ``10.198.141.33`` para el **Nodo 1** en la subred ``10.198.141.0/24`` y zona inversa ``141.198.10.in-addr.arpa``. Sustituye siempre estos valores por las direcciones IP privadas que Cherry Servers haya asignado a tus instancias.
 
-En el **Nodo 0** ``0.primitivas.linenes.tld``, instala los paquetes RPM oficiales para las tres primitivas y las herramientas de políticas de SELinux y Firewalld:
+En el **Nodo 0** ``0.primitivas.linenes.tld``, instala los paquetes RPM oficiales para las tres primitivas y las herramientas de políticas de SELinux, Firewalld y actualizaciones automáticas:
 
 .. code-block:: bash
 
@@ -144,6 +153,7 @@ En el **Nodo 0** ``0.primitivas.linenes.tld``, instala los paquetes RPM oficiale
 * ``nfs-utils``: Servidor y cliente en espacio de usuario para el sistema de archivos de red NFSv4 del kernel de Linux mediante ``rpc.mountd``, ``exportfs`` y ``mount.nfs4``.
 * ``policycoreutils-python-utils``: Proporciona la utilidad ``semanage`` para declarar contextos persistentes de SELinux.
 * ``firewalld``: Demonio de cortafuegos dinámico basado en zonas sobre ``nftables``.
+* ``dnf-automatic``: Complemento de DNF5 con temporizador de Systemd para descargar y aplicar actualizaciones automáticas del sistema.
 
 Paso B: Segmentación de Zonas en Firewalld entre ``public`` e ``internal``
 --------------------------------------------------------------------------
@@ -185,6 +195,9 @@ Verifica cómo quedaron separadas ambas zonas:
 
 En la salida comprobarás que cualquier paquete originado desde la red privada interna ``10.0.0.0/8`` es procesado de forma determinista por la zona ``internal`` con acceso a ``dns``, ``nfs`` y ``ntp``, mientras que el tráfico público externo en ``public`` solo alcanza ``ssh``.
 
+.. tip::
+   **Endurecimiento en producción:** En este laboratorio autorizas los tres bloques RFC 1918 completos para que el procedimiento funcione igual en Cherry Servers y en hipervisores locales como ``virbr0``. En entornos de producción, sustituye esos rangos amplios por tu subred privada exacta ``/24``, por ejemplo ``10.198.141.0/24``, tanto aquí en Firewalld como en la ACL de BIND 9, Chrony y ``/etc/exports``.
+
 Paso C: Primitiva 1, Servidor DNS Autoritativo y Recursivo con BIND 9
 ---------------------------------------------------------------------
 
@@ -196,20 +209,23 @@ Configurarás **BIND 9** con ``named.service`` en el **Nodo 0** para cumplir dos
 1. Crear el archivo principal ``/etc/named.conf``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-En el **Nodo 0**, define las variables con tu IP privada y los octetos de tu subred para generar la configuración sin errores de transcripción:
+En el **Nodo 0**, detecta tu IP privada y calcula los octetos de tu zona inversa verificando explícitamente que la variable no quede vacía antes de generar archivos de configuración:
 
 .. code-block:: bash
 
    # Detecta automáticamente la IP privada RFC 1918 de tu Nodo 0
-   SERVER_PRIV_IP=$(ip -4 -o addr show scope global | awk '$2 !~ /^(podman|veth|br-|cni)/ && $4 ~ /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/ {print $4}' | cut -d/ -f1 | head -n1)
-   IFS='.' read -r OCT1 OCT2 OCT3 OCT4 <<< "${SERVER_PRIV_IP}"
-   REV_ZONE="${OCT3}.${OCT2}.${OCT1}.in-addr.arpa"
+   IP_PRIVADA_NODO_0=$(ip -4 -o addr show scope global | awk '$2 !~ /^(podman|veth|br-|cni)/ && $4 ~ /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/ {print $4}' | cut -d/ -f1 | head -n1)
+   test -n "${IP_PRIVADA_NODO_0}" || { echo "Error: no se detectó una IP privada RFC 1918 en el Nodo 0" >&2; exit 1; }
+   IFS='.' read -r OCT1 OCT2 OCT3 OCT4 <<< "${IP_PRIVADA_NODO_0}"
+   ZONA_INVERSA="${OCT3}.${OCT2}.${OCT1}.in-addr.arpa"
 
-   printf 'IP Privada Nodo 0: %s | Zona Inversa: %s\n' "${SERVER_PRIV_IP}" "${REV_ZONE}"
+   printf 'IP Privada Nodo 0: %s | Zona Inversa: %s\n' "${IP_PRIVADA_NODO_0}" "${ZONA_INVERSA}"
 
-Ahora genera el archivo ``/etc/named.conf``:
+Ahora genera el archivo ``/etc/named.conf`` asegurándote de que ambas variables contienen valores válidos:
 
 .. code-block:: bash
+
+   test -n "${IP_PRIVADA_NODO_0}" && test -n "${ZONA_INVERSA}"
 
    cat << EOF > /etc/named.conf
    // =============================================================================
@@ -226,7 +242,7 @@ Ahora genera el archivo ``/etc/named.conf``:
 
    options {
        // Escuchar exclusivamente en loopback y en la IP privada (nunca en la IP pública WAN)
-       listen-on port 53 { 127.0.0.1; ${SERVER_PRIV_IP}; };
+       listen-on port 53 { 127.0.0.1; ${IP_PRIVADA_NODO_0}; };
        listen-on-v6 port 53 { ::1; };
 
        directory          "/var/named";
@@ -236,7 +252,7 @@ Ahora genera el archivo ``/etc/named.conf``:
        secroots-file      "/var/named/data/named.secroots";
        recursing-file     "/var/named/data/named.recursing";
 
-       // Restringir consultas y recursión estrictamente a la ACL de nuestra red privada
+       // Restringir consultas y recursión estrictamente a la ACL de tu red privada
        allow-query     { "red_interna"; };
        allow-recursion { "red_interna"; };
        recursion yes;
@@ -271,15 +287,15 @@ Ahora genera el archivo ``/etc/named.conf``:
        file "named.ca";
    };
 
-   // Zona directa autoritativa para nuestro laboratorio
+   // Zona directa autoritativa para tu laboratorio
    zone "linenes.tld" IN {
        type primary;
        file "linenes.tld.zone";
        allow-update { "red_interna"; };
    };
 
-   // Zona inversa autoritativa para nuestra subred privada /24
-   zone "${REV_ZONE}" IN {
+   // Zona inversa autoritativa para tu subred privada /24
+   zone "${ZONA_INVERSA}" IN {
        type primary;
        file "linenes.tld.rev";
        allow-update { "red_interna"; };
@@ -289,11 +305,11 @@ Ahora genera el archivo ``/etc/named.conf``:
    include "/etc/named.root.key";
    EOF
 
-**Puntos clave de arquitectura en** ``/etc/named.conf`` **:**
+**Puntos clave de arquitectura en** ``/etc/named.conf``:
 
-* ``listen-on port 53 { 127.0.0.1; ${SERVER_PRIV_IP}; };``: Ordena al demonio ``named`` abrir el socket TCP/UDP 53 únicamente en la interfaz local y en la interfaz privada ``ens4``. Así, además del bloqueo en Firewalld, el proceso ni siquiera escucha en la IP pública ``eth0``.
-* ``allow-query`` y ``allow-recursion``: Limitan cualquier consulta y resolución recursiva a los bloques definidos en ``acl "red_interna"``.
-* ``allow-update { "red_interna"; };``: Permite que los nodos clientes de nuestra red privada registren dinámicamente sus propios registros ``A`` y ``PTR`` mediante la herramienta estándar ``nsupdate`` según RFC 2136. En el Reto 1 aprenderás a blindar estas actualizaciones dinámicas con llaves criptográficas **TSIG**.
+* ``listen-on port 53 { 127.0.0.1; ${IP_PRIVADA_NODO_0}; };``: Ordena al demonio ``named`` abrir el socket TCP/UDP 53 únicamente en la interfaz local y en la interfaz privada ``ens4``. Así, además del bloqueo en Firewalld, el proceso ni siquiera escucha en la IP pública ``eth0``.
+* ``allow-query`` y ``allow-recursion``: Limitan cualquier consulta y resolución recursiva a los bloques definidos en ``acl "red_interna"``; en producción acota esa ACL específicamente a tu segmento ``/24``.
+* ``allow-update { "red_interna"; };``: Permite que los nodos clientes de tu red privada registren dinámicamente sus propios registros ``A`` y ``PTR`` mediante la herramienta estándar ``nsupdate`` según RFC 2136. En el Reto 1 aprenderás a blindar estas actualizaciones dinámicas con llaves criptográficas **TSIG**.
 
 2. Crear los archivos de zona directa e inversa en ``/var/named``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -317,8 +333,8 @@ Crea el archivo de zona directa ``/var/named/linenes.tld.zone``:
    @               IN  NS      ns1.linenes.tld.
 
    ; Registros A de nodos de infraestructura
-   ns1             IN  A       ${SERVER_PRIV_IP}
-   0.primitivas    IN  A       ${SERVER_PRIV_IP}
+   ns1             IN  A       ${IP_PRIVADA_NODO_0}
+   0.primitivas    IN  A       ${IP_PRIVADA_NODO_0}
 
    ; Alias canónicos de servicios (CNAME)
    ntp             IN  CNAME   0.primitivas.linenes.tld.
@@ -371,34 +387,39 @@ Antes de iniciar el servicio, valida rigurosamente la sintaxis de configuración
 
    named-checkconf -z /etc/named.conf
    named-checkzone -i full linenes.tld /var/named/linenes.tld.zone
-   named-checkzone -i full "${REV_ZONE}" /var/named/linenes.tld.rev
+   named-checkzone -i full "${ZONA_INVERSA}" /var/named/linenes.tld.rev
 
-Verás que ambas zonas cargan el serial ``2026102201`` y devuelven ``OK``. Habilita e inicia el servicio ``named.service`` en Systemd:
+Verás que ambas zonas cargan el serial ``2026102201`` y devuelven ``OK``. Habilita, reinicia y verifica el servicio ``named.service`` en Systemd para garantizar que cargue siempre la configuración recién escrita:
 
 .. code-block:: bash
 
    systemctl --now enable named.service
+   systemctl restart named.service
    systemctl --no-pager status named.service
 
-Realiza una prueba local de resolución directa, de alias ``CNAME`` y de resolución inversa con ``dig``:
+Realiza una prueba local de resolución directa, de alias ``CNAME``, de resolución inversa y de resolución recursiva externa contra internet con ``dig``:
 
 .. code-block:: bash
 
-   dig @"${SERVER_PRIV_IP}" 0.primitivas.linenes.tld A +short
-   dig @"${SERVER_PRIV_IP}" ntp.linenes.tld A +short
-   dig @"${SERVER_PRIV_IP}" nfs.linenes.tld A +short
-   dig @"${SERVER_PRIV_IP}" -x "${SERVER_PRIV_IP}" +short
+   dig @"${IP_PRIVADA_NODO_0}" 0.primitivas.linenes.tld A +short
+   dig @"${IP_PRIVADA_NODO_0}" ntp.linenes.tld A +short
+   dig @"${IP_PRIVADA_NODO_0}" nfs.linenes.tld A +short
+   dig @"${IP_PRIVADA_NODO_0}" -x "${IP_PRIVADA_NODO_0}" +short
+   dig @"${IP_PRIVADA_NODO_0}" centos.org A +short
+
+La última consulta confirma que tu servidor BIND 9 reenvía correctamente dominios externos a ``1.1.1.1`` y ``9.9.9.9`` manteniendo la recursión restringida a tu red privada.
 
 Paso D: Primitiva 2, Servidor de Tiempo de Precisión con Chrony y NTP
 ---------------------------------------------------------------------
 
 En **CentOS Stream 10**, el demonio ``chronyd`` viene instalado por defecto como cliente NTP, pero tiene deshabilitada la recepción de peticiones de otros nodos.
 
-Configurarás ``/etc/chrony.conf`` en el **Nodo 0** para que:
+Configurarás ``/etc/chrony.conf`` en el **Nodo 0** con directivas claras de precisión y resiliencia:
 
-#. Sincronice su propio reloj contra el *pool* global de servidores atómicos ``2.centos.pool.ntp.org`` usando el modificador ``iburst``, que envía una ráfaga inicial de paquetes para sincronizar en pocos segundos al arrancar.
-#. Autorice consultas NTP entrantes desde tu red privada con ``allow 10.0.0.0/8``, ``192.168.0.0/16`` y ``172.16.0.0/12``.
-#. Active ``local stratum 10``: si en algún momento el centro de datos pierde salida hacia internet, el **Nodo 0** continuará sirviendo una referencia de tiempo coherente a todos los nodos del clúster para evitar que sus relojes diverjan entre sí.
+#. ``pool 2.centos.pool.ntp.org iburst``: Sincroniza el reloj contra el *pool* global enviando una ráfaga inicial corta con ``iburst`` para converger en segundos al arrancar.
+#. ``makestep 1.0 3``: Permite corregir de golpe cualquier desfase superior a ``1.0`` segundo durante las tres primeras mediciones tras el arranque; a partir de ahí ajusta la deriva de forma progresiva sin saltos bruscos que alteren bases de datos o marcas de tiempo.
+#. ``rtcsync``: Habilita la sincronización periódica del reloj de hardware RTC del kernel cada 11 minutos para conservar la hora exacta al reiniciar.
+#. ``allow`` y ``local stratum 10``: Autoriza consultas NTP entrantes desde tu red privada, que en producción conviene estrechar a tu ``/24``, y mantiene una referencia de estrato local si el centro de datos pierde salida a internet para evitar que los relojes del clúster diverjan entre sí.
 
 Ejecuta en el **Nodo 0** ``0.primitivas.linenes.tld``:
 
@@ -446,9 +467,9 @@ Históricamente, configurar NFS en versiones antiguas como NFSv2 y NFSv3 era com
 
 **NFSv4.2**, el estándar moderno en CentOS Stream 10, rediseña el protocolo por completo:
 
-* **Un único puerto TCP** ``2049/tcp`` **:** El montaje, el control de bloqueos, las listas de control de acceso y la transferencia de datos viajan multiplexados dentro de una sola conexión TCP en el puerto ``2049``. No necesita ``rpcbind``.
+* **Un único puerto TCP** ``2049/tcp``: El montaje, el control de bloqueos, las listas de control de acceso y la transferencia de datos viajan multiplexados dentro de una sola conexión TCP en el puerto ``2049``. No necesita ``rpcbind``.
 * **Soporte nativo para etiquetas SELinux:** NFSv4.2 transporta los atributos extendidos de seguridad ``security.selinux`` entre el servidor y los clientes.
-* **Aislamiento de superusuario con** ``root_squash`` **:** Por seguridad, si el usuario ``root`` con UID ``0`` de un nodo cliente intenta escribir o modificar archivos en el recurso compartido, el servidor NFSv4 degrada automáticamente su identidad a la cuenta sin privilegios ``nobody`` con UID ``65534``, impidiendo que un cliente comprometido tome control de archivos de ``root`` en el servidor de almacenamiento.
+* **Aislamiento de superusuario con** ``root_squash``: Por seguridad, si el usuario ``root`` con UID ``0`` de un nodo cliente intenta escribir o modificar archivos en el recurso compartido, el servidor NFSv4 degrada automáticamente su identidad a la cuenta sin privilegios ``nobody`` con UID ``65534``, impidiendo que un cliente comprometido tome control de archivos de ``root`` en el servidor de almacenamiento.
 
 1. Estructura de directorios bajo FHS 3.0 y contexto SELinux ``nfs_t``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -466,7 +487,7 @@ Siguiendo el estándar **FHS 3.0**, crearás el árbol de almacenamiento compart
 
    # 2. Crear un archivo testigo inicial en el servidor
    cat << EOF > /srv/nfs/compartido/bienvenida.txt
-   Almacenamiento compartido NFSv4.2 activo desde $(hostname) (${SERVER_PRIV_IP}).
+   Almacenamiento compartido NFSv4.2 activo desde $(hostname) (${IP_PRIVADA_NODO_0}).
    SELinux en modo Enforcing con contexto nfs_t bajo FHS 3.0.
    EOF
    chown nobody:nobody /srv/nfs/compartido/bienvenida.txt
@@ -522,7 +543,7 @@ Declara el recurso exportado en ``/etc/exports``:
 
    restorecon -v /etc/exports
 
-**Significado de cada bandera en** ``/etc/exports`` **:**
+**Significado de cada bandera en** ``/etc/exports``:
 
 * ``rw``: Permite operaciones de lectura y escritura.
 * ``sync``: Garantiza integridad de datos confirmando las escrituras en disco antes de responder al cliente, previniendo corrupción ante caídas eléctricas.
@@ -555,16 +576,20 @@ Observa la salida de ``/proc/fs/nfsd/versions``:
 
 El signo ``-3`` y ``-4.0`` confirman que el kernel rechaza versiones antiguas y opera exclusivamente en **NFSv4.1 y NFSv4.2** sobre el puerto ``2049/tcp``.
 
+En la salida de ``ss -tulpn`` notarás también que el puerto ``2049/tcp`` escucha en ``0.0.0.0:2049`` y ``[::]:2049`` sin un proceso ni PID en espacio de usuario. Esto es completamente normal porque ``nfsd`` se ejecuta directamente como hilos del kernel de Linux y no se liga a una sola interfaz desde ``/etc/nfs.conf``; precisamente por eso la segmentación por zonas de Firewalld que aplicaste en el Paso B resulta indispensable para bloquear ``2049/tcp`` desde internet en la zona ``public``.
+
 Paso F: Configuración y Verificación desde el Nodo Cliente ``1.primitivas.linenes.tld``
 ---------------------------------------------------------------------------------------
 
-Ahora abre otra pestaña en tu terminal y conéctate por SSH al **Nodo 1**:
+Ahora abre una segunda pestaña en tu estación de trabajo, define ``IP_PUBLICA_NODO_1`` con la dirección pública real de tu segundo servidor y conéctate por SSH al **Nodo 1**:
 
 .. code-block:: bash
 
+   # Ejecuta en la nueva pestaña de tu estación de trabajo sustituyendo por tu IP real
+   export IP_PUBLICA_NODO_1="84.32.149.179"
    ssh "root@${IP_PUBLICA_NODO_1}"
 
-Configura su nombre de host canónico, instala las herramientas cliente y asegúrate de tener ``firewalld`` activo:
+Configura su nombre de host canónico, instala las herramientas cliente y activa ``firewalld``:
 
 .. code-block:: bash
 
@@ -572,25 +597,43 @@ Configura su nombre de host canónico, instala las herramientas cliente y asegú
    dnf -y install bind-utils chrony nfs-utils firewalld dnf-automatic
    systemctl --now enable firewalld
 
-Define en una variable la dirección IP privada de tu **Nodo 0**, que en nuestro ejemplo es ``10.198.141.17``:
+Aunque el **Nodo 1** no expone puertos de servicio propios hacia la red, habilitar ``firewalld`` con cero puertos entrantes adicionales mantiene una postura coherente de defensa en profundidad donde únicamente ``ssh`` permanece accesible en la zona ``public``.
+
+Ahora define en ``IP_PRIVADA_NODO_0`` la dirección IP privada real que anotaste para tu **Nodo 0** en el Paso A y ejecuta una consulta DNS previa de verificación antes de tocar NetworkManager:
+
+.. warning::
+   No copies literalmente ``10.198.141.17`` sin reemplazarla por la dirección IP privada real de tu **Nodo 0**. Si apuntas NetworkManager a una dirección inexistente, el **Nodo 1** perderá la resolución DNS hasta que corrijas el perfil.
 
 .. code-block:: bash
 
-   SERVER_PRIV_IP="10.198.141.17"
+   # Sustituye el valor de ejemplo por la IP privada real de tu Nodo 0 obtenida en el Paso A
+   IP_PRIVADA_NODO_0="10.198.141.17"
+
+   # Comprobación previa obligatoria antes de modificar NetworkManager
+   dig @"${IP_PRIVADA_NODO_0}" ns1.linenes.tld A +short +time=2 +tries=1
+
+Confirma que el comando anterior devuelve exactamente la misma dirección IP privada de tu **Nodo 0**. Si regresa vacío o agota el tiempo de espera, corrige ``IP_PRIVADA_NODO_0`` o revisa la zona ``internal`` de Firewalld en el **Nodo 0** antes de continuar.
 
 1. Configurar el Cliente DNS con NetworkManager y Registrar el Nodo con ``nsupdate``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Nunca edites ``/etc/resolv.conf`` directamente a mano en distribuciones empresariales modernas, ya que **NetworkManager** administra ese archivo y sobrescribirá tus cambios al renovar concesiones de red o reiniciar el servicio.
 
-Utiliza ``nmcli`` para configurar de forma persistente el servidor DNS interno ``${SERVER_PRIV_IP}`` con prioridad máxima y el dominio de búsqueda ``linenes.tld`` en la conexión principal del nodo:
+En nodos con doble interfaz de red como los de Cherry Servers, ``eth0`` para la ruta pública por defecto y ``ens4`` para la VLAN privada, fijar ``ipv4.dns-priority 10`` sobre la conexión de la ruta por defecto asegura que NetworkManager coloque tu servidor DNS interno al principio de ``/etc/resolv.conf`` por encima de cualquier perfil secundario.
+
+Utiliza ``nmcli`` para configurar de forma persistente el servidor DNS interno ``${IP_PRIVADA_NODO_0}`` y el dominio de búsqueda ``linenes.tld`` en la conexión principal del nodo:
 
 .. code-block:: bash
 
-   DEFAULT_DEV=$(ip -4 route show default | awk '{print $5; exit}')
-   PRIMARY_CON=$(nmcli -t -f NAME,DEVICE connection show --active | awk -F: -v dev="${DEFAULT_DEV}" '$NF == dev {sub(/:[^:]*$/, ""); print; exit}')
-   nmcli connection modify "${PRIMARY_CON}" ipv4.dns "${SERVER_PRIV_IP}" ipv4.dns-search "linenes.tld" ipv4.ignore-auto-dns yes ipv4.dns-priority 10
-   nmcli connection up "${PRIMARY_CON}"
+   INTERFAZ_DEFECTO=$(ip -4 route show default | awk '{print $5; exit}')
+   CONEXION_PRINCIPAL=$(nmcli -t -f NAME,DEVICE connection show --active | awk -F: -v dev="${INTERFAZ_DEFECTO}" '$NF == dev {sub(/:[^:]*$/, ""); print; exit}')
+   if [[ -z "${CONEXION_PRINCIPAL}" ]]; then
+     CONEXION_PRINCIPAL=$(nmcli -t -f NAME,DEVICE connection show --active | awk -F: '$NF != "lo" {sub(/:[^:]*$/, ""); print; exit}')
+   fi
+   test -n "${CONEXION_PRINCIPAL}" || { echo "Error: no se encontró una conexión activa en NetworkManager" >&2; exit 1; }
+
+   nmcli connection modify "${CONEXION_PRINCIPAL}" ipv4.dns "${IP_PRIVADA_NODO_0}" ipv4.dns-search "linenes.tld" ipv4.ignore-auto-dns yes ipv4.dns-priority 10
+   nmcli connection up "${CONEXION_PRINCIPAL}"
 
 Comprueba que ``/etc/resolv.conf`` ahora apunta a tu servidor DNS interno:
 
@@ -598,23 +641,25 @@ Comprueba que ``/etc/resolv.conf`` ahora apunta a tu servidor DNS interno:
 
    cat /etc/resolv.conf
 
-Ahora registra dinámicamente la dirección IP privada de este **Nodo 1** ``1.primitivas.linenes.tld`` tanto en la zona directa como en la zona inversa de BIND 9 utilizando ``nsupdate``:
+Ahora detecta la dirección IP privada de este **Nodo 1** ``1.primitivas.linenes.tld``, comprueba que no esté vacía y registra dinámicamente sus registros ``A`` y ``PTR`` en BIND 9 utilizando ``nsupdate``:
 
 .. code-block:: bash
 
-   CLIENT_PRIV_IP=$(ip -4 -o addr show scope global | awk '$2 !~ /^(podman|veth|br-|cni)/ && $4 ~ /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/ {print $4}' | cut -d/ -f1 | head -n1)
-   IFS='.' read -r C_OCT1 C_OCT2 C_OCT3 C_OCT4 <<< "${CLIENT_PRIV_IP}"
-   CLIENT_REV_ZONE="${C_OCT3}.${C_OCT2}.${C_OCT1}.in-addr.arpa"
+   IP_PRIVADA_NODO_1=$(ip -4 -o addr show scope global | awk '$2 !~ /^(podman|veth|br-|cni)/ && $4 ~ /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/ {print $4}' | cut -d/ -f1 | head -n1)
+   test -n "${IP_PRIVADA_NODO_1}" || { echo "Error: no se detectó una IP privada RFC 1918 en el Nodo 1" >&2; exit 1; }
+   test -n "${IP_PRIVADA_NODO_0}" || { echo "Error: define IP_PRIVADA_NODO_0 antes de ejecutar nsupdate" >&2; exit 1; }
+   IFS='.' read -r C_OCT1 C_OCT2 C_OCT3 C_OCT4 <<< "${IP_PRIVADA_NODO_1}"
+   ZONA_INVERSA_CLIENTE="${C_OCT3}.${C_OCT2}.${C_OCT1}.in-addr.arpa"
 
    nsupdate << EOF
-   server ${SERVER_PRIV_IP}
+   server ${IP_PRIVADA_NODO_0}
    zone linenes.tld
    update delete 1.primitivas.linenes.tld. A
-   update add 1.primitivas.linenes.tld. 86400 A ${CLIENT_PRIV_IP}
+   update add 1.primitivas.linenes.tld. 86400 A ${IP_PRIVADA_NODO_1}
    send
-   zone ${CLIENT_REV_ZONE}
-   update delete ${C_OCT4}.${CLIENT_REV_ZONE}. PTR
-   update add ${C_OCT4}.${CLIENT_REV_ZONE}. 86400 PTR 1.primitivas.linenes.tld.
+   zone ${ZONA_INVERSA_CLIENTE}
+   update delete ${C_OCT4}.${ZONA_INVERSA_CLIENTE}. PTR
+   update add ${C_OCT4}.${ZONA_INVERSA_CLIENTE}. 86400 PTR 1.primitivas.linenes.tld.
    send
    EOF
 
@@ -626,15 +671,15 @@ Verifica desde el cliente que todos los nombres y direcciones inversas resuelven
    dig 1.primitivas.linenes.tld +short
    dig ntp.linenes.tld +short
    dig nfs.linenes.tld +short
-   dig -x "${SERVER_PRIV_IP}" +short
-   dig -x "${CLIENT_PRIV_IP}" +short
+   dig -x "${IP_PRIVADA_NODO_0}" +short
+   dig -x "${IP_PRIVADA_NODO_1}" +short
 
 ¡Tu infraestructura ya cuenta con resolución de nombres directa e inversa funcional!
 
 2. Sincronizar el Reloj del Cliente contra ``ntp.linenes.tld``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Observa cómo ahora puedes usar directamente el nombre DNS **``ntp.linenes.tld``** en lugar de direcciones IP fijas. Configura ``/etc/chrony.conf`` en el **Nodo 1** dando preferencia con ``prefer`` a tu servidor NTP interno:
+Observa cómo ahora puedes usar directamente el nombre DNS ``ntp.linenes.tld`` en lugar de direcciones IP fijas. Configura ``/etc/chrony.conf`` en el **Nodo 1** dando preferencia con ``prefer`` a tu servidor NTP interno y fuerza un ajuste inmediato inicial con ``chronyc makestep``:
 
 .. code-block:: bash
 
@@ -654,6 +699,7 @@ Observa cómo ahora puedes usar directamente el nombre DNS **``ntp.linenes.tld``
    restorecon -v /etc/chrony.conf
    systemctl --now enable chronyd.service
    systemctl restart chronyd.service
+   chronyc makestep
 
 Espera 5 segundos y verifica las fuentes de tiempo del cliente:
 
@@ -662,20 +708,22 @@ Espera 5 segundos y verifica las fuentes de tiempo del cliente:
    chronyc sources -v
    chronyc tracking
 
-Verás en la primera línea de ``chronyc sources -v`` a ``^* 0.primitivas.linenes.tld`` seleccionado con el asterisco ``*`` como la fuente de reloj preferida y de menor latencia, por debajo de 1 milisegundo a través de la VLAN privada.
+En la tabla de fuentes de ``chronyc sources -v`` verás a ``0.primitivas.linenes.tld`` marcado con ``^*`` como la fuente de reloj seleccionada y de menor latencia, habitualmente por debajo de 1 milisegundo a través de la VLAN privada.
 
 3. Montar el Almacenamiento Compartido desde ``nfs.linenes.tld`` con NFSv4.2
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-En el **Nodo 1**, crea el directorio local de montaje ``/mnt/compartido`` y declara el montaje persistente en ``/etc/fstab`` utilizando el nombre DNS **``nfs.linenes.tld``**:
+En el **Nodo 1**, crea el directorio local de montaje ``/mnt/compartido`` y declara de forma idempotente el montaje persistente en ``/etc/fstab`` utilizando el nombre DNS ``nfs.linenes.tld``:
 
 .. code-block:: bash
 
    mkdir -p /mnt/compartido
 
-   cat << 'EOF' >> /etc/fstab
+   if ! grep -Fq "nfs.linenes.tld:/srv/nfs/compartido" /etc/fstab; then
+     cat << 'EOF' >> /etc/fstab
    nfs.linenes.tld:/srv/nfs/compartido  /mnt/compartido  nfs4  rw,relatime,vers=4.2,_netdev,x-systemd.automount  0  0
    EOF
+   fi
 
 **¿Por qué incluyes** ``_netdev`` **y** ``x-systemd.automount`` **en** ``/etc/fstab`` **?**
 
@@ -703,7 +751,7 @@ Ahora realiza la prueba de escritura desde el **Nodo 1**, el cliente, y comprueb
 .. code-block:: bash
 
    cat << EOF > /mnt/compartido/reporte-cliente.txt
-   Archivo escrito desde $(hostname) (${CLIENT_PRIV_IP}) mediante NFSv4.2.
+   Archivo escrito desde $(hostname) (${IP_PRIVADA_NODO_1}) mediante NFSv4.2.
    Fecha UTC: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
    EOF
 
@@ -720,9 +768,9 @@ A pesar de que ejecutaste el comando como ``root`` en el cliente, el servidor NF
 Paso G: Mantenimiento Continuo y Actualizaciones Automáticas con DNF5
 ---------------------------------------------------------------------
 
-En **CentOS Stream 10**, que utiliza **DNF5**, el archivo de configuración ``/etc/dnf/automatic.conf`` está empaquetado como ``%ghost`` y no existe en disco tras instalar el paquete hasta que se copia desde su plantilla en ``/usr/share/dnf5/dnf5-plugins/automatic.conf``.
+En **CentOS Stream 10**, que utiliza **DNF5**, el archivo de configuración ``/etc/dnf/automatic.conf`` está empaquetado como ``%ghost`` y no existe en disco tras instalar el paquete hasta que se copia desde su plantilla en ``/usr/share/dnf5/dnf5-plugins/automatic.conf``. Con la configuración por defecto ``upgrade_type = default``, activar ``apply_updates = yes`` mantiene al día los paquetes del sistema de forma desatendida.
 
-Ejecuta en **ambos nodos**, Nodo 0 y Nodo 1, para dejar habilitadas las actualizaciones automáticas de seguridad:
+Ejecuta en **ambos nodos**, Nodo 0 y Nodo 1, para dejar habilitadas las actualizaciones automáticas del sistema:
 
 .. code-block:: bash
 
@@ -746,29 +794,42 @@ En tu estación de trabajo o nodo de control, clona el repositorio oficial y sit
    git clone https://gitlab.com/renich/cherry-servers.git
    cd cherry-servers/04-primitives-dns-ntp-nfs
 
-La estructura de automatización consta de dos scripts declarativos en ``scripts/`` y los manifiestos planos en ``tofu/``:
+La estructura de automatización consta de dos scripts declarativos en ``scripts/`` y cinco archivos planos en ``tofu/``:
 
 * `scripts/bootstrap.bash <scripts/bootstrap.bash>`__: Configura automáticamente el **Nodo 0** ``0.primitivas.linenes.tld`` con Firewalld segmentado por zonas, BIND 9 autoritativo/recursivo, Chrony como servidor NTP de estrato interno y el servidor NFSv4.2 puro bajo ``/srv/nfs/compartido`` con SELinux en modo Enforcing.
-* `scripts/bootstrap-client.bash <scripts/bootstrap-client.bash>`__: Configura automáticamente el **Nodo 1** ``1.primitivas.linenes.tld``, recibe de OpenTofu la dirección IP privada recién asignada al Nodo 0, espera a que BIND 9 y NFSv4.2 estén en línea, configura NetworkManager, registra sus propios registros ``A`` y ``PTR`` vía ``nsupdate``, sincroniza Chrony contra ``ntp.linenes.tld`` y monta ``nfs.linenes.tld:/srv/nfs/compartido`` en ``/mnt/compartido``.
-* `tofu/main.tf <tofu/main.tf>`__: Declara el grafo de dependencias entre ambos servidores. Dado que ``primitivas_client`` referencia la dirección IP privada de ``primitivas_server`` mediante ``local.server_private_ip`` dentro de su bloque ``user_data``, OpenTofu aprovisiona primero el nodo servidor, extrae su dirección IP de la VLAN privada y la inyecta automáticamente en el script de arranque del nodo cliente.
+* `scripts/bootstrap-client.bash <scripts/bootstrap-client.bash>`__: Configura automáticamente el **Nodo 1** ``1.primitivas.linenes.tld``, valida la IP privada RFC 1918 recibida del Nodo 0, espera con fallo rápido a que BIND 9 y NFSv4.2 respondan, configura NetworkManager, registra sus registros ``A`` y ``PTR`` vía ``nsupdate``, sincroniza Chrony contra ``ntp.linenes.tld`` y monta ``nfs.linenes.tld:/srv/nfs/compartido`` en ``/mnt/compartido``.
+* `tofu/provider.tf <tofu/provider.tf>`__: Fija OpenTofu ``>= 1.8.0`` y el proveedor oficial ``cherryservers/cherryservers ~> 1.5.3``.
+* `tofu/variables.tf <tofu/variables.tf>`__: Declara las variables de entrada, incluyendo ``ssh_key_id`` opcional para reutilizar tu clave SSH existente sin duplicarla.
+* `tofu/main.tf <tofu/main.tf>`__: Declara el grafo de dependencias entre ambos servidores. Como ``primitivas_client`` referencia ``local.server_private_ip`` de ``primitivas_server`` dentro de ``user_data``, OpenTofu aprovisiona primero el Nodo 0, extrae su dirección IP privada y la inyecta automáticamente en el script del Nodo 1.
+* `tofu/outputs.tf <tofu/outputs.tf>`__: Imprime las IP públicas y privadas de ambos nodos junto con los comandos directos de acceso SSH.
+* `tofu/terraform.tfvars.example <tofu/terraform.tfvars.example>`__: Plantilla de variables locales para crear tu archivo privado ``terraform.tfvars``.
 
 Configurar Variables Locales y Desplegar con ``tofu apply``
 -----------------------------------------------------------
 
-Ingresa al directorio ``tofu/`` y crea tu archivo ``terraform.tfvars`` a partir de la plantilla de ejemplo:
+Ingresa al directorio ``tofu/``, crea tu archivo local ``terraform.tfvars`` a partir de la plantilla y protege sus permisos con modo ``600`` para que únicamente tu usuario pueda leer tu token de API:
 
 .. code-block:: bash
 
    cd tofu
    cp terraform.tfvars.example terraform.tfvars
+   chmod 600 terraform.tfvars
 
-Edita ``terraform.tfvars`` con tu token de API, el ID de tu proyecto y tu llave pública SSH Ed25519. Si en algún momento deseas aprovisionar ambos nodos limpios sin ejecutar los scripts de arranque para practicar manualmente la Sección 2, basta con cambiar ``enable_bootstrap = false``:
+Obtén cada valor requerido antes de editar ``terraform.tfvars``:
+
+* ``cherry_auth_token``: Genera un token personal en `Cherry Servers API Keys <https://portal.cherryservers.com/settings/api-keys>`__.
+* ``project_id``: Abre **Projects** en el portal de Cherry Servers y copia el identificador numérico de tu proyecto.
+* ``ssh_public_key``: Imprime tu clave pública local ejecutando ``cat ~/.ssh/id_ed25519.pub`` y pega la línea completa.
+* ``ssh_key_id``: Parámetro opcional recomendado si ya agregaste tu clave en el portal web durante la práctica manual. Abre **SSH Keys** en el portal de Cherry Servers, copia el identificador numérico de tu clave y colócalo en ``ssh_key_id`` dejando ``ssh_public_key`` comentado o vacío.
+
+Edita ``terraform.tfvars`` con tus datos. Si deseas aprovisionar ambos nodos limpios sin ejecutar los scripts de arranque para repetir la práctica manual de la Sección 2, cambia ``enable_bootstrap = false``:
 
 .. code-block:: hcl
 
    cherry_auth_token = "TU_API_TOKEN_AQUI"
    project_id        = 123456
    ssh_public_key    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... tu_correo@ejemplo.com"
+   # ssh_key_id      = "20003"
    server_name       = "0.primitivas.linenes.tld"
    client_name       = "1.primitivas.linenes.tld"
    dns_domain        = "linenes.tld"
@@ -777,14 +838,18 @@ Edita ``terraform.tfvars`` con tu token de API, el ID de tu proyecto y tu llave 
    enable_bootstrap  = true
 
 .. tip::
-   **Si tu llave SSH ya estaba registrada en el portal de Cherry Servers:** Si agregaste previamente la misma llave SSH desde el panel web de Cherry Servers, la API devolverá el aviso ``Similar key already exists`` al intentar crear ``cherryservers_ssh_key.deployer``. Puedes importar tu llave existente al estado de OpenTofu ejecutando ``tofu import cherryservers_ssh_key.deployer <ID_DE_TU_LLAVE>`` o bien generar un par de llaves dedicado para tus despliegues con OpenTofu mediante ``ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_tofu``.
+   **Reutilizar una clave SSH ya registrada sin riesgos:** Si agregaste previamente tu llave Ed25519 en el portal web de Cherry Servers, definir su identificador en ``ssh_key_id`` evita el error ``Similar key already exists`` y resulta mucho más seguro que importarla al estado: OpenTofu solo referencia tu llave existente y la mantiene intacta cuando ejecutas ``tofu destroy``.
 
-Inicializa el proveedor, valida la sintaxis y despliega la infraestructura:
+.. warning::
+   **Control de costos antes de aplicar:** Si todavía mantienes encendidos los dos servidores que creaste manualmente en el portal durante la Sección 2, elimínalos primero desde el panel web de Cherry Servers si no deseas que ``tofu apply`` despliegue dos instancias adicionales en paralelo.
+
+Inicializa el proveedor, valida la sintaxis, revisa el plan de ejecución y despliega la infraestructura:
 
 .. code-block:: bash
 
    tofu init
    tofu validate
+   tofu plan
    tofu apply
 
 Confirma escribiendo ``yes``. Al finalizar el aprovisionamiento, OpenTofu mostrará las direcciones IP públicas y privadas de ambos nodos junto con los comandos directos de conexión SSH:
@@ -800,29 +865,51 @@ Confirma escribiendo ``yes``. Al finalizar el aprovisionamiento, OpenTofu mostra
    ssh_client_command = "ssh root@84.32.149.179"
    ssh_server_command = "ssh root@84.32.110.69"
 
-Espera aproximadamente 90 segundos para que ``cloud-init`` concluya la ejecución de ``bootstrap.bash`` y ``bootstrap-client.bash``, y verifica el estado completo desde tu terminal ejecutando:
+Captura ambas direcciones IP públicas directamente desde las salidas de OpenTofu y sigue en tiempo real el registro de arranque ``/var/log/user-data.log`` en cada nodo hasta confirmar el mensaje final de finalización:
 
 .. code-block:: bash
 
-   ssh "root@${IP_PUBLICA_CLIENTE}" "dig nfs.linenes.tld +short && chronyc sources && df -hT /mnt/compartido && ls -laZ /mnt/compartido"
+   export IP_PUBLICA_NODO_0="$(tofu output -raw server_public_ip)"
+   export IP_PUBLICA_NODO_1="$(tofu output -raw client_public_ip)"
+
+   # Supervisa el arranque real de cada nodo; presiona Ctrl+C cuando veas "completado con éxito"
+   ssh "root@${IP_PUBLICA_NODO_0}" "tail -f /var/log/user-data.log"
+   ssh "root@${IP_PUBLICA_NODO_1}" "tail -f /var/log/user-data.log"
+
+Cuando ambos scripts hayan concluido, ejecuta la verificación integral de DNS, Chrony y NFSv4.2 sobre el **Nodo 1**:
+
+.. code-block:: bash
+
+   ssh "root@${IP_PUBLICA_NODO_1}" "dig nfs.linenes.tld +short && chronyc sources && df -hT /mnt/compartido && ls -laZ /mnt/compartido"
 
 4. Destrucción de los Servidores y Control de Costos
 ====================================================
 
-Recuerda siempre nuestra regla de disciplina operativa en la nube: al concluir tus pruebas y retos, destruye los recursos para conservar intacto tu saldo patrocinado de $20 USD para los siguientes laboratorios de la serie. Desde la carpeta ``04-primitives-dns-ntp-nfs/tofu`` en tu estación de trabajo, ejecuta:
+Recuerda siempre la regla de disciplina operativa en la nube: al concluir tus pruebas y retos, destruye los recursos para conservar intacto tu saldo patrocinado de $20 USD para los siguientes laboratorios de la serie.
+
+Desde la carpeta ``04-primitives-dns-ntp-nfs/tofu`` en tu estación de trabajo, captura primero las dos direcciones IP públicas mientras aún existen en el estado de OpenTofu, destruye la infraestructura, elimina tus secretos locales y limpia las huellas SSH en ``known_hosts``:
 
 .. code-block:: bash
 
+   # 1. Captura las IPs públicas antes de destruir el estado de OpenTofu
+   IP_PUBLICA_NODO_0="$(tofu output -raw server_public_ip)"
+   IP_PUBLICA_NODO_1="$(tofu output -raw client_public_ip)"
+
+   # 2. Destruye ambos servidores y confirma con 'yes'
    tofu destroy
 
-Confirma escribiendo ``yes``. OpenTofu eliminará ambos servidores y liberará las direcciones IP en tu proyecto de Cherry Servers.
+   # 3. Borra el archivo local de secretos y confirma que el estado quedó vacío
+   rm -f terraform.tfvars
+   tofu state list
 
-Finalmente, limpia las huellas SSH de tus servidores efímeros en tu archivo local ``known_hosts``:
+   # 4. Limpia las huellas SSH de tus servidores efímeros en known_hosts
+   ssh-keygen -R "${IP_PUBLICA_NODO_0}"
+   ssh-keygen -R "${IP_PUBLICA_NODO_1}"
 
-.. code-block:: bash
+Si utilizaste ``ssh_key_id`` para reutilizar una llave ya existente en tu cuenta, ``tofu destroy`` eliminará únicamente los dos servidores y conservará tu llave SSH en el portal de Cherry Servers.
 
-   ssh-keygen -R "${IP_PUBLICA_SERVIDOR}"
-   ssh-keygen -R "${IP_PUBLICA_CLIENTE}"
+.. note::
+   **Servidores creados manualmente en la Sección 2:** Si aprovisionaste dos instancias a mano desde el panel web de Cherry Servers para la práctica manual, recuerda eliminarlas también directamente desde el portal para evitar cargos por hora innecesarios.
 
 5. Retos de Aprendizaje y Práctica
 ==================================
@@ -831,22 +918,38 @@ Pon a prueba lo aprendido con estos tres desafíos de ingeniería sin soluciones
 
 #. **Reto 1: Actualizaciones DNS Dinámicas Autenticadas con Llaves Criptográficas TSIG y** ``tsig-keygen``
 
-   * En el laboratorio permitiste actualizaciones dinámicas con ``allow-update`` basadas en la dirección IP de la subred privada mediante ``acl "red_interna"``. En entornos de alta seguridad, autorizar por IP no es suficiente si un atacante logra conectarse a la VLAN. Investiga cómo generar una llave simétrica HMAC-SHA256 utilizando la herramienta ``tsig-keygen -a hmac-sha256 actualizacion-linenes``, inclúyela en ``/etc/named.conf``, cambia la política de las zonas a ``allow-update { key "actualizacion-linenes"; };`` y realiza el registro desde el nodo cliente utilizando ``nsupdate -k``.
+   * **Objetivo:** En el laboratorio permitiste actualizaciones dinámicas con ``allow-update`` basadas en la dirección IP de tu red privada mediante ``acl "red_interna"``. En entornos de alta seguridad, autorizar por IP no es suficiente si un atacante logra conectarse a la VLAN. Investiga cómo generar una llave simétrica HMAC-SHA256 con ``tsig-keygen -a hmac-sha256 actualizacion-linenes``, inclúyela en ``/etc/named.conf``, cambia la política de las zonas a ``allow-update { key "actualizacion-linenes"; };`` y realiza el registro desde el nodo cliente utilizando ``nsupdate -k``.
+   * **Criterio de éxito:** Una ejecución de ``nsupdate`` sin llave desde el Nodo 1 es rechazada con ``REFUSED``, mientras que ``nsupdate -k`` actualiza los registros ``A`` y ``PTR`` con estado ``NOERROR`` y ``named-checkconf -z`` termina sin errores.
 
 #. **Reto 2: Directorios Home sobre NFSv4.2 y Booleano SELinux** ``use_nfs_home_dirs``
 
-   * En clústeres de cómputo científico y empresarial, los usuarios inician sesión por SSH en cualquier nodo y encuentran exactamente su mismo directorio ``/home/<usuario>`` montado por NFSv4.2. Crea una nueva exportación ``/srv/nfs/homes`` en el servidor, móntala en el cliente y crea un usuario sin privilegios cuyo directorio personal resida en el recurso NFS. Investiga por qué SELinux bloquea inicialmente el acceso de ``sshd`` a claves ``~/.ssh/authorized_keys`` alojadas sobre ``nfs_t`` y cómo habilitar de forma persistente el booleano ``use_nfs_home_dirs`` con ``setsebool -P``.
+   * **Objetivo:** En clústeres de cómputo científico y empresarial, los usuarios inician sesión por SSH en cualquier nodo y encuentran exactamente su mismo directorio ``/home/usuario`` montado por NFSv4.2. Crea una nueva exportación ``/srv/nfs/homes`` en el servidor, móntala en el cliente y crea un usuario sin privilegios cuyo directorio personal resida en el recurso NFS. Investiga por qué SELinux bloquea inicialmente el acceso de ``sshd`` a claves ``~/.ssh/authorized_keys`` alojadas sobre ``nfs_t`` y cómo habilitar de forma persistente el booleano ``use_nfs_home_dirs`` con ``setsebool -P``.
+   * **Criterio de éxito:** El usuario inicia sesión por SSH en el Nodo 1 usando su llave pública almacenada en el recurso NFS, ``findmnt`` confirma montaje ``nfs4`` versión ``4.2`` y ``ausearch -m AVC,USER_AVC -ts recent`` muestra cero denegaciones tras activar el booleano.
 
 #. **Reto 3: Convergencia con Ansible Uniendo el Cómo 03 y el Cómo 04**
 
-   * Toma los conocimientos que adquiriste en el **Cómo 03** y escribe un Playbook de Ansible ``site.yaml`` con un inventario de dos grupos ``[primitivas_server]`` y ``[primitivas_clients]`` que configure de manera idempotente BIND 9, Chrony y NFSv4.2 en ambos nodos utilizando los módulos de la colección ``ansible.posix``, como ``ansible.posix.firewalld``, ``ansible.posix.mount`` y ``ansible.posix.selinux``, junto con plantillas Jinja2 ``.j2``. Verifica que una segunda ejecución del Playbook devuelva ``changed=0`` en ambos servidores.
+   * **Objetivo:** Toma los conocimientos que adquiriste en el **Cómo 03** y escribe un Playbook de Ansible ``site.yaml`` con un inventario de dos grupos ``[primitivas_server]`` y ``[primitivas_clients]`` que configure de manera idempotente BIND 9, Chrony y NFSv4.2 en ambos nodos utilizando los módulos de la colección ``ansible.posix``, como ``ansible.posix.firewalld``, ``ansible.posix.mount`` y ``ansible.posix.selinux``, junto con plantillas Jinja2 ``.j2``.
+   * **Criterio de éxito:** Una segunda ejecución completa de ``ansible-playbook`` concluye con ``changed=0`` y ``failed=0`` en ambos servidores manteniendo operativos DNS, NTP y NFSv4.2 bajo SELinux en modo Enforcing.
+
+Referencias Oficiales
+=====================
+
+* `CentOS Stream: documentación y propósito del proyecto <https://www.centos.org/centos-stream/>`__
+* `ISC BIND 9: manual de referencia del administrador <https://bind9.readthedocs.io/en/latest/>`__
+* `Chrony: documentación oficial de sincronización NTP <https://chrony-project.org/documentation.html>`__
+* `Red Hat Enterprise Linux 10: exportación de sistemas de archivos NFS <https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/administer-configuring_nfs_share>`__
+* `Red Hat Enterprise Linux 10: administración de SELinux <https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/secure-getting_started_with_selinux>`__
+* `Firewalld: documentación oficial de zonas y servicios <https://firewalld.org/documentation/>`__
+* `Filesystem Hierarchy Standard FHS 3.0 <https://refspecs.linuxfoundation.org/FHS_3.0/fhs/index.html>`__
+* `OpenTofu: documentación oficial de infraestructura como código <https://opentofu.org/docs/>`__
 
 Dudas y Preguntas
------------------
+=================
 
-Si tienes alguna duda, encuentras algún detalle técnico o quieres compartir cómo resolviste los retos, abre un issue en nuestro repositorio oficial o comenta en el hilo de la comunidad en ``r/LinuxEnEspanol``:
+Si tienes alguna duda, encuentras algún detalle técnico o quieres compartir cómo resolviste los retos, abre una incidencia en el repositorio oficial o participa en la comunidad de `r/LinuxEnEspanol <https://www.reddit.com/r/LinuxEnEspanol/>`__:
 
-`Reportar un issue o consulta en GitLab <https://gitlab.com/renich/cherry-servers/-/issues>`__
+* `Reportar una incidencia o consulta en GitLab <https://gitlab.com/renich/cherry-servers/-/issues>`__
+* `Continuar con el Cómo 05: Almacenamiento de objetos distribuido S3 con Garage <../05-garage-s3/README.rst>`__
 
 Licencia
 ========

@@ -36,7 +36,7 @@ dnf -y install epel-release
 /usr/bin/crb enable || true
 dnf -y install podman firewalld jq curl dnf-automatic
 
-# 3. Configurar Firewalld ANTES de iniciar contenedores
+# 3. Configurar Firewalld antes de iniciar contenedores
 #    La zona public permanece cerrada a solo SSH; puertos Garage estrictamente en internal.
 systemctl --now enable firewalld
 firewall-cmd --permanent --zone=internal --add-source=10.0.0.0/8

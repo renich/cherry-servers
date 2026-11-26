@@ -1,10 +1,10 @@
 # =============================================================================
-# 4. Salidas del Despliegue (Outputs)
+# 4. Salidas del Despliegue
 # =============================================================================
-# Datos que OpenTofu nos imprime en la terminal cuando la creación concluye.
+# Datos que OpenTofu imprime en tu terminal cuando la creación concluye.
 
 locals {
-  # Obtenemos la dirección IPv4 pública principal asignada por Cherry Servers
+  # Extrae la dirección IPv4 pública principal asignada por Cherry Servers
   primary_ip = one([for ip in cherryservers_server.luanti_node.ip_addresses : ip.address if ip.type == "primary-ip"])
 }
 

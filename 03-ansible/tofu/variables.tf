@@ -16,31 +16,38 @@ variable "project_id" {
 
 variable "region" {
   type        = string
-  default     = "LT-Siauliai" # Lituania (máxima disponibilidad y menor latencia en Europa)
+  default     = "LT-Siauliai"
   description = "Slug de la región geográfica en Cherry Servers"
 }
 
 variable "server_plan" {
   type        = string
-  default     = "B1-1-1gb-20s-shared" # Cloud VPS 1 (Gen 2: 1 vCore/1 GB RAM/20GB SSD, ~$0.015 EUR/hr)
-  description = "Slug del plan de cómputo en Cherry Servers"
+  default     = "B1-1-1gb-20s-shared"
+  description = "Slug del plan de cómputo en Cherry Servers: Cloud VPS 1, ~$0.015 EUR/hr"
 }
 
 variable "server_image" {
   type        = string
   default     = "centos_stream_10_64bit"
-  description = "Slug de la imagen del sistema operativo en Cherry Servers (CentOS Stream 10 por defecto)"
+  description = "Slug de la imagen del sistema operativo en Cherry Servers, CentOS Stream 10 por defecto"
 }
 
 variable "ssh_public_key" {
   type        = string
-  description = "Tu clave pública SSH para acceder de forma segura sin contraseña"
+  default     = ""
+  description = "Tu clave pública SSH Ed25519 para acceder de forma segura sin contraseña"
+}
+
+variable "ssh_key_id" {
+  type        = string
+  default     = ""
+  description = "ID de clave SSH existente en Cherry Servers para reutilizar sin recrearla"
 }
 
 variable "server_name" {
   type        = string
   default     = "0.ansible.linenes.tld"
-  description = "FQDN estructurado del nodo servidor (nodo.servicio.entorno.tld)"
+  description = "FQDN estructurado del nodo servidor"
 }
 
 variable "spot_instance" {

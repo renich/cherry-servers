@@ -1,10 +1,10 @@
 # =============================================================================
-# 4. Salidas del Despliegue (Outputs)
+# 4. Salidas del Despliegue
 # =============================================================================
-# Datos que OpenTofu nos imprime en la terminal cuando la creación concluye.
+# Datos que OpenTofu imprime en tu terminal cuando la creación concluye.
 
 locals {
-  # Obtenemos la dirección IPv4 pública principal asignada por Cherry Servers
+  # Obtiene la dirección IPv4 pública principal asignada por Cherry Servers
   primary_ip       = one([for ip in cherryservers_server.caddy_node.ip_addresses : ip.address if ip.type == "primary-ip"])
   effective_domain = var.vault_domain != "" && var.vault_domain != "auto" ? var.vault_domain : "${local.primary_ip}.sslip.io"
 }
@@ -20,7 +20,7 @@ output "vault_domain" {
 }
 
 output "vaultwarden_url" {
-  description = "URL segura de acceso público con certificado Let's Encrypt para Vaultwarden"
+  description = "URL HTTPS de acceso a Vaultwarden; usa Let's Encrypt en dominios públicos o sslip.io y tls internal en dominios privados o locales"
   value       = "https://${local.effective_domain}"
 }
 

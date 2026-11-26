@@ -1,7 +1,7 @@
 # =============================================================================
 # 2. Definición de Variables de Entrada
 # =============================================================================
-# Parámetros configurables por el usuario sin necesidad de modificar el código.
+# Parámetros configurables sin necesidad de modificar el código.
 
 variable "cherry_auth_token" {
   type        = string
@@ -16,37 +16,44 @@ variable "project_id" {
 
 variable "region" {
   type        = string
-  default     = "LT-Siauliai" # Lituania (máxima disponibilidad y menor latencia en Europa)
+  default     = "LT-Siauliai" # Lituania: alta disponibilidad y baja latencia en Europa
   description = "Slug de la región geográfica en Cherry Servers"
 }
 
 variable "server_plan" {
   type        = string
-  default     = "B1-1-1gb-20s-shared" # Cloud VPS 1 (Gen 2: 1 vCore/1 GB RAM/20GB SSD, ~$0.015 EUR/hr)
+  default     = "B1-1-1gb-20s-shared" # Cloud VPS 1 Gen 2: 1 vCore, 1 GB RAM, 20 GB SSD, ~$0.015 EUR/hr
   description = "Slug del plan de cómputo en Cherry Servers"
 }
 
 variable "server_image" {
   type        = string
   default     = "centos_stream_10_64bit"
-  description = "Slug de la imagen del sistema operativo en Cherry Servers (CentOS Stream 10 por defecto)"
+  description = "Slug de la imagen del sistema operativo en Cherry Servers, CentOS Stream 10 por defecto"
 }
 
 variable "ssh_public_key" {
   type        = string
-  description = "Tu clave pública SSH para acceder de forma segura sin contraseña"
+  default     = ""
+  description = "Tu clave pública SSH Ed25519 para acceder de forma segura sin contraseña"
+}
+
+variable "ssh_key_id" {
+  type        = string
+  default     = ""
+  description = "ID de clave SSH existente en Cherry Servers para reutilizar sin recrearla"
 }
 
 variable "server_name" {
   type        = string
   default     = "0.caddy.linenes.tld"
-  description = "FQDN estructurado del nodo servidor (nodo.servicio.entorno.tld)"
+  description = "FQDN estructurado del nodo servidor: nodo.servicio.entorno.tld"
 }
 
 variable "vault_domain" {
   type        = string
   default     = "auto"
-  description = "Nombre de dominio FQDN para Vaultwarden ('auto' asigna automáticamente <IP>.sslip.io con certificado Let's Encrypt)"
+  description = "Nombre de dominio FQDN para Vaultwarden; con auto asigna tu IP pública con .sslip.io y certificado Let's Encrypt"
 }
 
 variable "spot_instance" {
@@ -58,5 +65,5 @@ variable "spot_instance" {
 variable "enable_bootstrap" {
   type        = bool
   default     = true
-  description = "Ejecutar el script de bootstrap automáticamente al arrancar (false para laboratorios manuales paso a paso)"
+  description = "Ejecutar el script de arranque automáticamente al iniciar; usa false para laboratorios manuales paso a paso"
 }

@@ -18,38 +18,41 @@ Te doy una cordial bienvenida a este **tercer Cómo** de nuestra serie práctica
 
 En los dos Cómos anteriores aprendiste los fundamentos de administración a bajo nivel: cómo instalar paquetes RPM, estructurar directorios bajo el estándar **FHS 3.0**, gestionar servicios con **Systemd**, orquestar contenedores con **Podman Quadlets** y gobernar la seguridad con **SELinux en modo Enforcing**.
 
-Sin embargo, configurar servidores ejecutando comandos manualmente por SSH uno por uno no escala en entornos de producción. Si tu servidor sufre una falla de hardware o necesitas replicar exactamente el mismo servicio en cinco máquinas distintas, el trabajo manual introduce errores humanos, inconsistencias y pérdida de tiempo.
+Sin embargo, configurar servidores ejecutando comandos manualmente por SSH uno por uno no escala en producción. Si un servidor sufre una falla de hardware o necesitas replicar exactamente el mismo servicio en cinco máquinas distintas, el trabajo manual introduce errores humanos, inconsistencias y pérdida de tiempo.
 
-Aquí es donde entra **Ansible**: una herramienta de automatización y gestión de configuraciones **sin agentes**, *agentless*, que opera de forma declarativa e **idempotente** a través de SSH estándar.
+Aquí entra **Ansible**: una herramienta de automatización y gestión de configuraciones **sin agentes**, *agentless*, que opera de forma declarativa e **idempotente** sobre SSH estándar. Todo el laboratorio corre en servidores con **CentOS Stream 10**. Lejos del mito recurrente de que «CentOS murió», CentOS Stream es hoy la rama abierta de entrega continua aguas arriba de **Red Hat Enterprise Linux 10**, con estabilidad ABI/API durante el ciclo mayor, contribución pública transparente, **Python 3** nativo, **SELinux en modo Enforcing** y soporte de primera clase para **EPEL 10**.
 
-Siguiendo nuestra filosofía pedagógica **«Manual Primero, Automatización Después»**, en este laboratorio primero comprenderás cómo opera Ansible desde la línea de comandos de tu entorno de control, construirás un Playbook declarativo paso a paso, comprobarás el principio de idempotencia y desvío de configuración o *configuration drift*, y finalmente orquestarás el aprovisionamiento automatizado del servidor con **OpenTofu**.
+Siguiendo nuestra filosofía pedagógica **«Manual Primero, Automatización Después»**, primero comprenderás cómo opera Ansible desde tu nodo de control, construirás un Playbook declarativo paso a paso en un directorio local de práctica, comprobarás la idempotencia y la recuperación ante desvío de configuración o *configuration drift*, y finalmente orquestarás el aprovisionamiento completo del servidor con **OpenTofu**.
 
 1. Prerrequisitos del Laboratorio
 =================================
 
-Para llevar a cabo esta práctica necesitas dos componentes fundamentales: un **nodo de control** desde donde orquestarás la infraestructura y un **nodo servidor objetivo** donde se aplicará la configuración.
+Para realizar esta práctica necesitas dos roles claros: un **nodo de control** desde donde ejecutas Ansible y OpenTofu, y un **nodo servidor objetivo** con CentOS Stream 10 donde se aplicará la configuración.
 
-A. Tu Entorno o Nodo de Control con CentOS Stream 10
-----------------------------------------------------
+A. Tu Nodo de Control: Fedora Linux o CentOS Stream 10
+------------------------------------------------------
 
-Dado que en esta serie educativa promovemos el dominio técnico de **CentOS Stream 10**, ejecutaremos todo el flujo de automatización, OpenTofu, Ansible Core y OpenSSH, directamente desde este sistema operativo.
+Ejecutarás todo el flujo de automatización, OpenTofu, Ansible Core y OpenSSH, desde tu nodo de control:
 
-Muy probablemente tu computadora física personal no tiene CentOS Stream 10 instalado, pues utilizas Windows, macOS u otra distribución de Linux. Para obtener tu entorno de control en CentOS Stream 10, tienes dos alternativas directas:
+#. **Tu estación de trabajo con Fedora Linux, opción recomendada:**
 
-#. **En la nube con Cherry Servers, opción recomendada:**
+   * Si ya trabajas con **Fedora Linux**, tu propia computadora funciona de forma nativa como nodo de control; **no necesitas rentar un VPS adicional**. Tanto ``ansible-core`` como ``opentofu`` están disponibles directamente en los repositorios oficiales de Fedora.
 
-   * Puedes desplegar tu máquina virtual de control en cuestión de minutos gracias al patrocinio de **Cherry Servers** para nuestra comunidad.
-   * Regístrate mediante `este enlace de bienvenida <https://portal.cherryservers.com/register?promo_code=LinuxEnEspanol>`__ utilizando el código promocional ``LinuxEnEspanol`` para recibir **$20 USD de crédito de regalo**.
-   * En el portal de Cherry Servers, crea una instancia **Cloud VPS 1** seleccionando **CentOS Stream 10** como sistema operativo. Esta máquina será tu **estación de control**.
+#. **Un servidor de control CentOS Stream 10 en Cherry Servers, alternativa si usas Windows o macOS:**
 
-#. **En tu hipervisor local:**
+   * Si tu equipo personal corre Windows o macOS y prefieres un entorno empresarial Linux puro en la nube, regístrate mediante `este enlace de bienvenida <https://portal.cherryservers.com/register?promo_code=LinuxEnEspanol>`__ con el código promocional ``LinuxEnEspanol`` para recibir **$20 USD de crédito de regalo**.
+   * En el portal de Cherry Servers, crea una instancia **Cloud VPS 1** con **CentOS Stream 10** y añade tu clave SSH o anota las credenciales iniciales del portal. Localiza su dirección IP pública en la columna **Primary IP** de tu proyecto y conéctate por SSH desde tu terminal como ``root`` para usarla como estación de control.
 
-   * Si cuentas con un hipervisor local en tu equipo como KVM/libvirt con ``virt-manager`` o ``virsh``, VirtualBox o VMware, descarga la imagen oficial de CentOS Stream 10 y arranca una máquina virtual local.
+#. **Una máquina virtual local con CentOS Stream 10:**
 
-B. Creación y Operación desde un Usuario Normal sin Privilegios
----------------------------------------------------------------
+   * Si dispones de un hipervisor local como KVM/libvirt con ``virt-manager`` o ``virsh``, VirtualBox o VMware, descarga la imagen oficial de **CentOS Stream 10** y arranca una VM local como estación de control.
 
-En tu máquina de control con CentOS Stream 10, si accedes inicialmente como ``root``, crea inmediatamente un usuario ordinario de trabajo, por ejemplo ``estudiante`` o tu propio nombre, con privilegios administrativos vía ``sudo``. Como regla fundamental de seguridad en Linux, **nunca debes operar tu estación de trabajo diaria directamente como** ``root``:
+B. Usuario Normal sin Privilegios en el Nodo de Control
+-------------------------------------------------------
+
+Si trabajas desde tu estación de trabajo local con **Fedora Linux**, ya operas con tu usuario ordinario y puedes avanzar directo a la **Sección 1C**.
+
+Si elegiste una VM o un VPS dedicado con **CentOS Stream 10** como nodo de control y entraste inicialmente como ``root``, crea de inmediato un usuario normal con privilegios administrativos mediante ``sudo``. Como regla fundamental de seguridad en Linux, **nunca debes operar tu estación de control diaria directamente como** ``root``:
 
 .. code-block:: bash
 
@@ -63,116 +66,139 @@ Inicia sesión con tu usuario normal:
 
    su - estudiante
 
-A partir de este momento, **todas las operaciones se ejecutan desde tu usuario normal**, reservando ``sudo`` exclusivamente para instalar herramientas del sistema local con DNF.
+A partir de este punto, **todas las operaciones locales se ejecutan desde tu usuario normal**, reservando ``sudo`` únicamente para instalar paquetes del sistema con DNF.
 
 C. Generación de tu Llave SSH Ed25519 con Frase de Paso
 -------------------------------------------------------
 
-Ansible no utiliza contraseñas interactivas para autenticarse contra los servidores remotos; opera sobre conexiones SSH estándar mediante criptografía asimétrica. No asumas que tu entorno ya tiene llaves generadas.
+Ansible no usa contraseñas interactivas para autenticarse contra los servidores remotos; opera sobre SSH estándar mediante criptografía asimétrica. Si ya creaste una llave Ed25519 en los Cómos 01 o 02, puedes reutilizarla sin sobrescribirla.
 
-Genera tu par de llaves criptográficas **Ed25519** protegidas por frase de paso o *passphrase*:
+Si aún no tienes un par de llaves, genera una llave **Ed25519** protegida por frase de paso o *passphrase*:
 
 .. code-block:: bash
 
    ssh-keygen -t ed25519 -C "tu_correo@ejemplo.com"
 
 #. **Ruta del archivo:** Cuando la herramienta te solicite ``Enter file in which to save the key (/home/estudiante/.ssh/id_ed25519):``, presiona ``Enter`` para aceptar la ruta predeterminada.
-#. **Frase de paso o passphrase:** Cuando te pida ``Enter passphrase (empty for no passphrase):``, **escribe una contraseña segura**. Esto cifra tu archivo privado con AES-256 en el disco, asegurando que si alguien copia tu archivo sin autorización, no pueda utilizar tu identidad.
+#. **Frase de paso o passphrase:** Cuando te pida ``Enter passphrase (empty for no passphrase):``, **escribe una contraseña segura**. Esto cifra tu clave privada con AES-256 en el disco para que nadie pueda usar tu identidad aunque copie el archivo.
 
-Este comando genera dos archivos en tu directorio ``~/.ssh/``:
+Este comando crea dos archivos en ``~/.ssh/``:
 
-* ``~/.ssh/id_ed25519``: Tu **llave privada** con permisos estrictos ``0600``. Es tu secreto criptográfico personal; jamás debes compartirla, transferirla ni subirla a repositorios.
-* ``~/.ssh/id_ed25519.pub``: Tu **llave pública** con permisos ``0644``. Esta es la que instalarás en los servidores que vas a administrar.
+* ``~/.ssh/id_ed25519``: tu **llave privada** con permisos estrictos ``0600``; nunca debes compartirla ni subirla a ningún repositorio.
+* ``~/.ssh/id_ed25519.pub``: tu **llave pública** con permisos ``0644``; es la única que instalarás en los servidores administrados.
 
 D. Inicio del Demonio ``ssh-agent`` y Carga de tu Llave
 -------------------------------------------------------
 
-Al haber protegido tu llave privada con una frase de paso, cada vez que Ansible intentara conectarse por SSH al servidor remoto te solicitaría la contraseña en la terminal. En una automatización de decenas de tareas, esto sería inviable.
+Al proteger tu llave privada con una frase de paso, cada conexión SSH de Ansible pediría la contraseña en tu terminal, lo cual volvería inviable cualquier automatización.
 
-Para resolverlo con elegancia y sin relajar la seguridad, Linux incluye **``ssh-agent``**, un servicio en segundo plano que retiene tu llave privada desencriptada en memoria RAM durante tu sesión activa de terminal:
+Para resolverlo sin debilitar la seguridad, Linux incluye ``ssh-agent``, un proceso en segundo plano que mantiene tu llave privada descifrada únicamente en memoria RAM durante tu sesión activa de terminal:
 
 .. code-block:: bash
 
    # Iniciar el agente SSH en tu sesión actual de la terminal
-   eval $(ssh-agent -s)
+   eval "$(ssh-agent -s)"
 
-   # Cargar tu llave privada en el agente (ingresa tu frase de paso una sola vez)
+   # Cargar tu llave privada en el agente: ingresa tu frase de paso una sola vez
    ssh-add ~/.ssh/id_ed25519
 
    # Confirmar que la identidad está cargada en memoria
    ssh-add -l
 
-Verás una salida confirmando que tu llave está lista para ser consumida:
+Verás una salida confirmando que tu llave está disponible:
 
 .. code-block:: text
 
    256 SHA256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx tu_correo@ejemplo.com (ED25519)
 
-E. El Servidor Objetivo a Administrar e Instalación de tu Llave Pública
------------------------------------------------------------------------
+E. El Servidor Objetivo, su Dirección IP y tu Llave Pública
+-----------------------------------------------------------
 
-Ahora necesitas el **nodo servidor objetivo** con CentOS Stream 10 que vas a aprovisionar y asegurar con Ansible. Puede ser un segundo servidor en Cherry Servers o una segunda VM local.
+Ahora necesitas el **nodo servidor objetivo** con **CentOS Stream 10** que vas a configurar y asegurar con Ansible. Puedes crear una instancia **Cloud VPS 1** en `Cherry Servers <https://portal.cherryservers.com/register?promo_code=LinuxEnEspanol>`__ con el código promocional ``LinuxEnEspanol`` para obtener **$20 USD de crédito**, o levantar una máquina virtual local con CentOS Stream 10.
 
-Para que tu estación de control pueda administrarlo, debes instalar tu llave pública ``~/.ssh/id_ed25519.pub`` en la cuenta ``root`` del servidor objetivo:
+Antes de ejecutar comandos SSH, obtén la dirección IPv4 pública o accesible de tu servidor objetivo:
 
-* **Si desplegaste el servidor objetivo en el portal de Cherry Servers:** Copia el contenido de tu llave pública con ``cat ~/.ssh/id_ed25519.pub`` y pégala en la sección de llaves SSH al crear la instancia.
-* **Si el servidor objetivo ya está activo con acceso temporal por contraseña:** Utiliza el comando estándar ``ssh-copy-id``:
+* **En Cherry Servers:** abre tu proyecto en el portal web, selecciona la instancia recién creada y copia el valor del campo **Primary IP**.
+* **En una máquina virtual local:** inicia sesión en la consola de la VM y consulta su IPv4 activa con ``ip -4 -o addr show scope global``.
+
+En tu **nodo de control**, exporta esa dirección en la variable de entorno ``IP_DEL_SERVIDOR`` para reutilizarla en todo el laboratorio. Reemplaza la dirección de ejemplo ``203.0.113.100`` por la IP real de tu servidor objetivo:
+
+.. code-block:: bash
+
+   export IP_DEL_SERVIDOR="203.0.113.100"
+
+A continuación instala tu llave pública ``~/.ssh/id_ed25519.pub`` en la cuenta ``root`` del servidor objetivo:
+
+* **Si desplegaste el servidor objetivo en el portal de Cherry Servers:** imprime tu clave con ``cat ~/.ssh/id_ed25519.pub`` y regístrala en la sección **SSH Keys** del portal al crear la instancia.
+* **Si el servidor objetivo local o recién creado todavía usa acceso temporal por contraseña:** copia tu llave pública con ``ssh-copy-id``:
 
   .. code-block:: bash
 
-     ssh-copy-id -i ~/.ssh/id_ed25519.pub "root@${IP_DEL_SERVIDOR_OBJETIVO}"
+     ssh-copy-id -i ~/.ssh/id_ed25519.pub "root@${IP_DEL_SERVIDOR}"
 
-* **Comprobación de acceso:** Prueba la conexión desde tu nodo de control:
+* **Comprobación de acceso SSH:** prueba la conexión desde tu nodo de control:
 
   .. code-block:: bash
 
-     ssh "root@${IP_DEL_SERVIDOR_OBJETIVO}"
+     ssh "root@${IP_DEL_SERVIDOR}"
 
-  Gracias a ``ssh-agent``, accederás inmediatamente como ``root`` sin prompts de contraseña. Sal de la sesión remota para regresar a tu entorno de control:
+  Gracias a ``ssh-agent``, accederás de inmediato como ``root`` sin solicitudes de contraseña. Acepta la huella del servidor al conectar por primera vez y sal de la sesión remota para regresar a tu nodo de control:
 
   .. code-block:: bash
 
      exit
 
-F. Instalación de Herramientas en el Nodo de Control con CentOS Stream 10
--------------------------------------------------------------------------
+F. Instalación de Herramientas en el Nodo de Control
+----------------------------------------------------
 
-En tu estación de control CentOS Stream 10, operando con tu usuario ``estudiante``, instala las herramientas necesarias:
+Instala las herramientas locales en tu nodo de control según tu sistema operativo.
+
+**En Fedora Linux, estación de trabajo local:**
+
+.. code-block:: bash
+
+   sudo dnf -y install ansible-core openssh-clients git-core curl jq opentofu
+
+**En CentOS Stream 10, si usas un nodo de control dedicado:**
 
 .. code-block:: bash
 
    # 1. Habilitar repositorio EPEL 10 y complementos DNF
    sudo dnf -y install epel-release dnf-plugins-core
 
-   # 2. Instalar Ansible Core, colecciones POSIX y utilidades OpenSSH
-   sudo dnf -y install ansible-core ansible-collection-ansible-posix openssh-clients git-core curl jq
+   # 2. Instalar Ansible Core y utilidades de red y repositorio
+   sudo dnf -y install ansible-core openssh-clients git-core curl jq
 
    # 3. Instalar OpenTofu mediante el instalador oficial RPM
-   curl --proto '=https' --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh -o install-opentofu.sh
+   curl --proto '=https' --tlsv1.2 -fsSL -o install-opentofu.sh https://get.opentofu.org/install-opentofu.sh
    sudo bash install-opentofu.sh --install-method rpm
    rm -f install-opentofu.sh
 
-Verifica que las herramientas estén disponibles en tu entorno:
+Verifica que ambas herramientas respondan correctamente en tu terminal:
 
 .. code-block:: bash
 
    ansible --version
    tofu version
 
-G. Clonar el Repositorio Oficial y Situarse en el Cómo 03
----------------------------------------------------------
+G. Directorio de Práctica Local para la Construcción Manual
+-----------------------------------------------------------
 
-Clona el repositorio de la serie de Cómos e ingresa al directorio de trabajo de este laboratorio:
+Crea un directorio limpio en tu nodo de control para construir todos los archivos de la **Sección 2** paso a paso desde cero:
 
 .. code-block:: bash
 
-   git clone https://gitlab.com/renich/cherry-servers.git
-   cd cherry-servers/03-ansible
+   mkdir -p ~/lab-ansible
+   cd ~/lab-ansible
+
+Trabajar primero en ``~/lab-ansible`` evita sobrescribir archivos versionados del repositorio durante la práctica manual. En la **Sección 3** clonarás el repositorio oficial para automatizar la creación del servidor con OpenTofu.
 
 H. Gestión Declarativa de Colecciones con Ansible Galaxy y ``requirements.yaml``
 --------------------------------------------------------------------------------
 
-Aunque EPEL 10 empaqueta la colección ``ansible.posix`` como RPM del sistema bajo ``ansible-collection-ansible-posix``, en la administración profesional de infraestructura la mejor práctica es no acoplar tus recetas al gestor de paquetes del host. Declarar las dependencias en un archivo ``requirements.yaml`` permite que tu proyecto sea portátil y reproducible en cualquier nodo o pipeline de CI/CD:
+Notarás que en la Sección 1F no instalaste el paquete RPM ``ansible-collection-ansible-posix``. Mantener las colecciones declaradas en ``requirements.yaml`` e instalarlas con ``ansible-galaxy`` en ``~/.ansible/collections`` evita conflictos de sombreado frente a versiones del sistema en ``/usr/share/ansible/collections`` y garantiza reproducibilidad portátil en Fedora, CentOS Stream 10 y flujos de CI/CD.
+
+Declara la dependencia mínima de ``ansible.posix`` en ``requirements.yaml``:
 
 .. code-block:: bash
 
@@ -183,7 +209,7 @@ Aunque EPEL 10 empaqueta la colección ``ansible.posix`` como RPM del sistema ba
        version: ">=1.5.0"
    EOF
 
-Instala las colecciones declaradas en tu entorno local con ``ansible-galaxy``:
+Instala las colecciones declaradas en tu entorno de usuario con ``ansible-galaxy``:
 
 .. code-block:: bash
 
@@ -192,11 +218,11 @@ Instala las colecciones declaradas en tu entorno local con ``ansible-galaxy``:
 Postura de Privilegios: Acceso Directo como Root Frente a Sudo
 --------------------------------------------------------------
 
-En la administración moderna de infraestructura en la nube existe una distinción crucial entre tu estación de trabajo personal y un servidor remoto automatizado:
+En la administración moderna de infraestructura en la nube existe una distinción clave entre tu estación de control y un servidor remoto automatizado:
 
-#. **En tu estación de control con CentOS Stream 10:** Operas como un usuario mortal sin privilegios, por ejemplo ``estudiante``. Utilizas ``sudo`` estrictamente cuando modificas paquetes o servicios del sistema local con comandos como ``sudo dnf -y install ...`` para evitar accidentes en tu entorno de trabajo diario.
-#. **En servidores remotos en la nube:** El acceso por contraseña está estrictamente deshabilitado mediante ``PermitRootLogin prohibit-password``. Solo quien posea tu clave criptográfica privada Ed25519 puede abrir una sesión. Crear un usuario intermedio, por ejemplo ``ansible`` o ``admin``, simplemente para otorgarle privilegios universales sin contraseña en ``/etc/sudoers`` con ``NOPASSWD: ALL`` no aporta seguridad real: es **simulación de seguridad** o *security theater* que añade consumo de recursos, ruido en los registros del sistema y complejidad innecesaria.
-#. **Verdadero principio de menor privilegio:** En lugar de complicar el transporte de administración, la seguridad real se implementa en los servicios: cada aplicación se ejecuta bajo una cuenta de sistema dedicada sin shell interactiva en ``/sbin/nologin``, con permisos estrictos de directorios bajo **FHS 3.0** y confinamiento por **SELinux**. La cuenta ``root`` es utilizada exclusivamente por el motor de orquestación para construir y vigilar esas fronteras.
+#. **En tu nodo de control con Fedora Linux o CentOS Stream 10:** operas como un usuario normal sin privilegios y utilizas ``sudo`` solo al modificar paquetes o servicios locales con comandos como ``sudo dnf -y install ...``.
+#. **En servidores remotos en la nube:** el acceso por contraseña está deshabilitado mediante ``PermitRootLogin prohibit-password``. Solo quien posea tu llave privada Ed25519 puede abrir una sesión. Crear un usuario intermedio como ``ansible`` o ``admin`` únicamente para darle privilegios universales sin contraseña en ``/etc/sudoers`` con ``NOPASSWD: ALL`` no aporta seguridad real: es **simulación de seguridad** o *security theater* que añade ruido en bitácoras y complejidad sin beneficio.
+#. **Verdadero principio de menor privilegio:** la seguridad real vive en los servicios: cada aplicación corre bajo una cuenta de sistema dedicada sin shell interactiva en ``/sbin/nologin``, con permisos estrictos bajo **FHS 3.0** y confinamiento mediante **SELinux**. La cuenta ``root`` se limita a construir y verificar esas fronteras.
 
 2. Construcción y Configuración Manual vía SSH y Ansible CLI, El Núcleo del Aprendizaje
 =======================================================================================
@@ -204,23 +230,23 @@ En la administración moderna de infraestructura en la nube existe una distinci�
 Paso A: Fundamentos de Ansible y Arquitectura sin Agentes
 ---------------------------------------------------------
 
-A diferencia de otras soluciones tradicionales de orquestación como Puppet, Chef o SaltStack, Ansible no requiere que instales ningún demonio o agente en segundo plano en el servidor remoto.
+A diferencia de soluciones tradicionales como Puppet, Chef o SaltStack, Ansible no exige instalar ningún demonio ni agente permanente en el servidor remoto.
 
 Ansible opera bajo el modelo **Push sobre SSH**:
 
-#. Tu estación de control lee el inventario y el Playbook.
-#. Traduce las tareas declarativas a pequeños módulos independientes en Python.
-#. Transfiere y ejecuta los módulos en el nodo remoto a través de una conexión SSH segura.
-#. Recibe la respuesta en formato JSON estructurado y remueve los archivos temporales.
+#. Tu nodo de control lee el inventario y el Playbook.
+#. Traduce las tareas declarativas a módulos ligeros en Python.
+#. Transfiere y ejecuta los módulos en el servidor remoto mediante SSH estándar.
+#. Recibe el resultado en JSON estructurado y elimina los archivos temporales al concluir.
 
-Para que esto funcione, el único requisito en el servidor gestionado es contar con **Python 3**, que ya viene preinstalado por defecto en la imagen oficial de CentOS Stream 10.
+El único requisito en el servidor gestionado es contar con **Python 3**, que viene preinstalado por defecto en la imagen oficial de **CentOS Stream 10**.
 
-A partir de este momento, **todas las operaciones se ejecutan desde tu estación de control con CentOS Stream 10**.
+A partir de aquí, **todas las operaciones se ejecutan desde tu nodo de control**, dentro de ``~/lab-ansible``.
 
 Paso B: Configuración del Entorno de Control y Verificación Estricta de Huellas SSH
 -----------------------------------------------------------------------------------
 
-En tu máquina de control con CentOS Stream 10, ubícate en el directorio de trabajo del laboratorio y crea el archivo de configuración ``ansible.cfg``:
+Dentro de ``~/lab-ansible``, crea el archivo de configuración ``ansible.cfg``:
 
 .. code-block:: bash
 
@@ -243,49 +269,50 @@ En tu máquina de control con CentOS Stream 10, ubícate en el directorio de tra
 Parámetros clave de ``ansible.cfg``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-* ``inventory = inventory.ini``: Establece el archivo de inventario predeterminado para no tener que especificar ``-i inventory.ini`` en cada comando.
-* ``remote_user = root``: Define la cuenta remota para la sesión SSH. Al operar directamente con la clave Ed25519 de ``root``, evitas el uso innecesario de ``sudo`` en el servidor remoto.
-* ``host_key_checking = True``: **Seguridad criptográfica estricta.** Mantiene activa la verificación de huellas en ``~/.ssh/known_hosts``. Desactivar esta directiva en tutoriales es una mala práctica común que vuelve vulnerable la conexión ante ataques de intermediario, *Man-in-the-Middle* o MITM.
-* ``interpreter_python = auto_silent``: Detecta automáticamente la ruta óptima de Python en el servidor remoto sin emitir advertencias molestas.
-* ``private_key_file = ~/.ssh/id_ed25519``: Especifica la ruta de tu llave privada Ed25519, indicándole a Ansible exactamente qué identidad utilizar al conectar.
-* ``[ssh_connection] ssh_args``: Habilita multiplexación de conexiones mediante ``ControlMaster``, persistencia de sesión con ``ControlPersist=60s`` y añade ``-o IdentitiesOnly=yes``. Esta última opción es crítica: si tu agente SSH almacena múltiples identidades, SSH podría intentar cada una sucesivamente hasta exceder el límite de autenticaciones del servidor definido en ``MaxAuthTries``, provocando un error de ``Too many authentication failures``. Con ``IdentitiesOnly=yes``, SSH presenta únicamente la llave explícita.
+* ``inventory = inventory.ini``: define el archivo de inventario predeterminado para no repetir ``-i inventory.ini`` en cada comando.
+* ``remote_user = root``: establece la cuenta remota SSH directamente con tu llave Ed25519.
+* ``host_key_checking = True``: mantiene activa la verificación estricta de huellas en ``~/.ssh/known_hosts``. Desactivar esta opción vuelve tu conexión vulnerable a ataques de intermediario, *Man-in-the-Middle* o MITM.
+* ``retry_files_enabled = False``: evita que Ansible deje archivos residuales ``.retry`` en tu directorio de trabajo cuando una tarea falla.
+* ``interpreter_python = auto_silent``: descubre automáticamente la ruta óptima de Python en el servidor remoto sin emitir advertencias innecesarias.
+* ``private_key_file = ~/.ssh/id_ed25519``: indica a Ansible qué llave privada Ed25519 presentar al servidor.
+* ``become = False`` bajo ``[privilege_escalation]``: desactiva la elevación por ``sudo``, ya que la sesión SSH opera directamente como ``root`` con llave pública.
+* ``ssh_args`` bajo ``[ssh_connection]``: habilita multiplexación de conexiones con ``ControlMaster`` y ``ControlPersist=60s`` para acelerar tareas consecutivas, y añade ``-o IdentitiesOnly=yes`` para que SSH envíe solo la llave configurada y no agote el límite ``MaxAuthTries`` si tu agente contiene varias identidades.
 
 Mantenimiento de ``known_hosts`` con ``ssh-keyscan`` y ``ssh-keygen``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Al mantener ``host_key_checking = True``, tu cliente SSH verificará la identidad del servidor remoto antes de transmitir cualquier dato.
+Al mantener ``host_key_checking = True``, tu cliente SSH valida la identidad del servidor remoto antes de transmitir cualquier dato.
 
-Si bien en el Paso A aceptaste interactivamente la huella en tu terminal al conectar manualmente, en automatizaciones, pipelines y despliegues desatendidos el patrón estándar de la industria es registrar previamente la clave pública con la herramienta estándar ``ssh-keyscan`` para evitar interrupciones por prompts interactivos:
+Si bien en la Sección 1E aceptaste interactivamente la huella en tu terminal al conectar manualmente, en automatizaciones y despliegues desatendidos el patrón estándar es registrar la clave pública previamente con ``ssh-keyscan`` para evitar bloqueos por confirmaciones interactivas:
 
 .. code-block:: bash
 
    ssh-keyscan -t ed25519 "${IP_DEL_SERVIDOR}" >> ~/.ssh/known_hosts
 
 .. tip::
-   **Consejo de Sysadmin:** En entornos de nube donde creas y destruyes servidores dinámicamente, es común que una IP reciclada tenga una clave de host anterior guardada. Si alguna vez recibes una advertencia de colisión de clave con ``WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!``, no desactives la seguridad; simplemente purga la entrada obsoleta con el comando estándar:
+   **Consejo de Sysadmin:** En entornos de nube donde creas y destruyes servidores con frecuencia, una dirección IP reciclada puede tener una clave de host anterior guardada. Si alguna vez ves ``WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!``, no desactives la verificación; purga la entrada obsoleta con:
 
    .. code-block:: bash
 
       ssh-keygen -R "${IP_DEL_SERVIDOR}"
 
-   Y vuelve a ejecutar ``ssh-keyscan`` para registrar la identidad del nuevo nodo.
+   Y vuelve a ejecutar ``ssh-keyscan`` para registrar la identidad del nuevo servidor.
 
-Ahora crea el archivo de inventario ``inventory.ini``. Sustituye ``<IP_DEL_SERVIDOR>`` por la dirección IP pública real de tu nodo CentOS Stream 10:
+Ahora crea el archivo de inventario ``inventory.ini``. Usa un heredoc sin comillas en ``EOF`` para que Bash inserte automáticamente el valor de ``${IP_DEL_SERVIDOR}`` que exportaste en la Sección 1E:
 
 .. code-block:: bash
 
-   cat << 'EOF' > inventory.ini
+   cat << EOF > inventory.ini
    [webservers]
-   cherry-node ansible_host=<IP_DEL_SERVIDOR> ansible_user=root
-
-   [webservers:vars]
-   ansible_python_interpreter=/usr/bin/python3
+   cherry-node ansible_host=${IP_DEL_SERVIDOR} ansible_user=root
    EOF
+
+Observa que ``ansible_python_interpreter`` no se fija en el inventario: al omitirlo, dejas que ``interpreter_python = auto_silent`` en ``ansible.cfg`` descubra automáticamente ``/usr/bin/python3`` en el servidor objetivo.
 
 Paso C: Comprobación de Conectividad y Módulos Ad-Hoc
 -----------------------------------------------------
 
-Ansible permite ejecutar comandos puntuales denominados **ad-hoc** sin necesidad de escribir un Playbook completo.
+Ansible permite ejecutar comandos puntuales denominados **ad-hoc** sin escribir un Playbook completo.
 
 Prueba la conectividad utilizando el nombre completo de colección **FQCN** ``ansible.builtin.ping``:
 
@@ -294,7 +321,7 @@ Prueba la conectividad utilizando el nombre completo de colección **FQCN** ``an
    ansible -m ansible.builtin.ping webservers
 
 .. note::
-   **Aclaración importante:** El módulo ``ping`` de Ansible **no envía paquetes ICMP de red**. Ejecuta un micro-script en Python en el nodo remoto para comprobar la autenticación SSH, la integridad del canal y la capacidad de ejecutar código en Python.
+   **Aclaración importante:** El módulo ``ping`` de Ansible **no envía paquetes ICMP de red**. Ejecuta un micro-script en Python en el nodo remoto para comprobar la autenticación SSH, la integridad del canal y la disponibilidad del intérprete Python.
 
 La respuesta exitosa se verá así:
 
@@ -314,7 +341,7 @@ Ahora inspecciona la recolección automática de variables del sistema o *facts*
 
    ansible -a "filter=ansible_distribution*" -m ansible.builtin.setup webservers
 
-Ansible te reportará los hechos descubiertos del sistema operativo en tiempo real:
+Ansible reportará los hechos descubiertos del sistema operativo en tiempo real:
 
 .. code-block:: text
 
@@ -330,7 +357,7 @@ Ansible te reportará los hechos descubiertos del sistema operativo en tiempo re
 El Manual de Componentes y Módulos: ``ansible-doc``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Antes de escribir una sola línea de código en tu Playbook, necesitas saber cómo explorar la documentación de Ansible. No necesitas memorizar parámetros ni buscar recetas dispersas en internet: Ansible incluye su propio sistema de manual integrado directamente en tu terminal:
+Antes de escribir tu Playbook, aprovecha el sistema de documentación integrado directamente en tu terminal:
 
 * **Consultar el manual completo de un módulo:**
 
@@ -338,9 +365,9 @@ Antes de escribir una sola línea de código en tu Playbook, necesitas saber có
 
      ansible-doc ansible.posix.selinux
 
-  Despliega una interfaz interactiva análoga a las páginas ``man`` con la descripción del módulo, requisitos del sistema, parámetros disponibles, valores por defecto y ejemplos de uso prácticos.
+  Despliega una vista análoga a las páginas ``man`` con descripción, requisitos, parámetros, valores predeterminados y ejemplos de uso.
 
-* **Obtener un snippet conciso listo para usar con** ``-s`` **:**
+* **Obtener un fragmento conciso listo para usar con** ``-s`` **:**
 
   .. code-block:: bash
 
@@ -348,27 +375,27 @@ Antes de escribir una sola línea de código en tu Playbook, necesitas saber có
      ansible-doc -s ansible.posix.firewalld
      ansible-doc -s ansible.builtin.dnf
 
-  La bandera ``-s``, de *snippet*, imprime la estructura YAML exacta del módulo con los tipos de datos esperados y marcas de campos obligatorios ``# (required)``, ideal para consultar rápidamente la sintaxis mientras construyes tu receta.
+  La bandera ``-s`` imprime la estructura YAML mínima del módulo con los tipos de datos esperados y marcas de campos obligatorios ``# (required)``, ideal para consultar sintaxis exacta mientras escribes tus tareas.
 
-* **Documentación oficial upstream en la web:**
+* **Documentación oficial del proyecto en la web:**
 
-  * Colección `ansible.posix <https://docs.ansible.com/ansible/latest/collections/ansible/posix/>`__: Módulos para cortafuegos con ``firewalld``, políticas de seguridad con ``selinux``, variables del kernel con ``sysctl`` y montajes.
-  * Colección `ansible.builtin <https://docs.ansible.com/ansible/latest/collections/ansible/builtin/>`__: Módulos esenciales del núcleo como ``dnf``, ``systemd_service``, ``file``, ``template``, ``copy``, ``user`` y ``group``.
+  * Colección `ansible.posix <https://docs.ansible.com/ansible/latest/collections/ansible/posix/>`__: módulos para cortafuegos con ``firewalld``, políticas de ``selinux``, parámetros del kernel con ``sysctl`` y montajes.
+  * Colección `ansible.builtin <https://docs.ansible.com/ansible/latest/collections/ansible/builtin/>`__: módulos esenciales del núcleo como ``dnf``, ``systemd_service``, ``file``, ``template``, ``copy``, ``user`` y ``group``.
 
 Paso D: Creación del Playbook Declarativo e Idempotente en ``playbook.yaml``
 ----------------------------------------------------------------------------
 
-Un **Playbook** es un archivo YAML donde describes el **estado deseado** de tu infraestructura. En lugar de ordenar secuencias de comandos imperativos como «ejecuta esto, luego esto otro», defines declaraciones de estado como «este paquete debe estar presente», «este servicio debe estar activo», «este archivo debe tener estos permisos».
+Un **Playbook** es un archivo YAML donde describes el **estado deseado** de tu infraestructura. En lugar de dictar pasos imperativos, declaras condiciones finales: qué paquetes deben estar instalados, qué usuarios deben existir, qué permisos y contextos SELinux deben aplicarse y qué servicios deben quedar activos.
 
-Para este laboratorio, automatizarás el despliegue de un servicio web bajo el estándar **FHS 3.0** en ``/srv/webapp``, con Nginx, sincronización de hora con Chrony, reglas en Firewalld y políticas de **SELinux en modo Enforcing**.
+Para este laboratorio automatizarás el despliegue de un servicio web bajo **FHS 3.0** en ``/srv/webapp``, con Nginx, sincronización horaria mediante Chrony, reglas en Firewalld y **SELinux en modo Enforcing**.
 
-Primero, crea el directorio para las plantillas Jinja2:
+Primero crea el directorio para tus plantillas Jinja2:
 
 .. code-block:: bash
 
    mkdir -p templates
 
-Crea la plantilla para la configuración de Nginx en ``templates/webapp.conf.j2``:
+Crea la plantilla de configuración de Nginx en ``templates/webapp.conf.j2``:
 
 .. code-block:: bash
 
@@ -399,7 +426,16 @@ Crea la plantilla para la configuración de Nginx en ``templates/webapp.conf.j2`
    }
    EOF
 
-Crea la plantilla HTML en ``templates/index.html.j2``. Observa que aquí se utilizan variables estáticas del host, como la distribución y la dirección IPv4 descubierta, para que la página sea informativa sin alterar la suma de verificación del archivo en corridas subsecuentes:
+Directivas clave de ``templates/webapp.conf.j2``:
+
+* ``listen 80 default_server`` y ``listen [::]:80 default_server``: atienden tráfico HTTP en IPv4 e IPv6 como servidor predeterminado.
+* ``server_name _``: comodín estándar de Nginx que acepta peticiones directas por dirección IP sin depender todavía de un dominio DNS.
+* ``root /srv/webapp/public`` e ``index index.html``: señalan la raíz pública de datos bajo FHS 3.0.
+* ``server_tokens off``: oculta la versión exacta de Nginx en cabeceras HTTP y páginas de error para reducir la información expuesta ante escaneos.
+* ``try_files $uri $uri/ =404``: sirve archivos estáticos existentes o devuelve ``404`` de inmediato.
+* ``location = /favicon.ico``: silencia registros innecesarios cuando los navegadores piden automáticamente el icono del sitio.
+
+Crea la plantilla HTML en ``templates/index.html.j2``. Observa que utiliza únicamente hechos estables del host, como la distribución y la IPv4 principal, para que la página sea informativa sin cambiar su suma de verificación en corridas posteriores:
 
 .. code-block:: bash
 
@@ -556,12 +592,12 @@ Crea la plantilla HTML en ``templates/index.html.j2``. Observa que aquí se util
 Anatomía y Construcción del Playbook Bloque a Bloque
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-En lugar de copiar ciegamente un archivo monolítico, analiza la anatomía del Playbook dividida en sus seis bloques arquitectónicos:
+En lugar de copiar un archivo monolítico sin entenderlo, revisa la anatomía del Playbook dividida en seis bloques claros:
 
 Bloque 1: Cabecera del Play y Variables Globales en ``vars``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Todo Playbook inicia declarando el grupo objetivo ``hosts: webservers``, activando la recolección de hechos del sistema mediante ``gather_facts: true`` y aislando los parámetros de configuración en variables para no tener valores fijos o *hardcode* dispersos:
+Todo Playbook inicia declarando el grupo objetivo ``hosts: webservers``, activando ``gather_facts: true`` y aislando los parámetros en ``vars`` para no dejar valores fijos dispersos en las tareas. Incluye ``curl`` en el servidor objetivo para facilitar pruebas HTTP locales desde el propio nodo cuando necesites diagnosticar el servicio:
 
 .. code-block:: yaml
 
@@ -582,12 +618,11 @@ Todo Playbook inicia declarando el grupo objetivo ``hosts: webservers``, activan
          - firewalld
          - chrony
          - curl
-         - jq
 
 Bloque 2: Paquetes del Sistema y Sincronización de Tiempo con Chrony
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Instalas la lista de paquetes en una sola transacción DNF. En Ansible, pasar una lista de paquetes a ``name:`` es infinitamente más eficiente que usar un bucle ``loop:``, ya que DNF resuelve todas las dependencias en una sola ejecución:
+Instalas todos los paquetes en una sola transacción DNF. Pasar una lista directa a ``name:`` es mucho más rápido que usar ``loop:``, pues DNF resuelve todas las dependencias en una única ejecución:
 
 .. code-block:: yaml
 
@@ -606,11 +641,11 @@ Instalas la lista de paquetes en una sola transacción DNF. En Ansible, pasar un
 Bloque 3: Usuario de Sistema y Jerarquía FHS 3.0
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Creas una cuenta de sistema dedicada para aislar los procesos web bajo ``webapp`` sin shell interactiva en ``/sbin/nologin``. Observa el manejo de permisos:
+Creas una cuenta dedicada para aislar el contenido web bajo ``webapp`` sin shell interactiva en ``/sbin/nologin``:
 
-#. ``useradd -m`` crea ``/srv/webapp`` con permisos restrictivos ``0700`` por defecto en Linux.
-#. Si no modificas el directorio base, ningún otro usuario podrá acceder a sus subdirectorios.
-#. Declaras explícitamente ``/srv/webapp`` con permisos ``0750`` y tipo SELinux ``httpd_sys_content_t`` para permitir que Nginx atraviese la jerarquía:
+* ``system: true`` asigna un UID/GID dentro del rango reservado de cuentas de sistema, inferior a ``1000``, separado de usuarios humanos.
+* ``useradd -m`` crea ``/srv/webapp`` con permisos ``0700`` por defecto; por eso declaras explícitamente ``mode: '0750'`` para que el grupo ``webapp`` pueda recorrer la jerarquía.
+* ``seuser: system_u`` aplica la identidad de usuario SELinux propia de archivos administrados por servicios del sistema, mientras ``setype: httpd_sys_content_t`` autoriza a Nginx a leer el contenido estático.
 
 .. code-block:: yaml
 
@@ -653,7 +688,11 @@ Creas una cuenta de sistema dedicada para aislar los procesos web bajo ``webapp`
 Bloque 4: Despliegue de Plantillas y Configuración de Nginx
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Despliegas el HTML dinámico y el archivo de configuración en ``/etc/nginx/conf.d/webapp.conf``. Notificas al manejador para que Nginx solo se recargue si el archivo cambió, validas la sintaxis con ``/usr/sbin/nginx -t`` y agregas a ``nginx`` al grupo secundario ``webapp``:
+Despliegas la página HTML y el bloque de servidor en ``/etc/nginx/conf.d/webapp.conf``, distinguiendo tres detalles críticos:
+
+* ``httpd_config_t`` frente a ``httpd_sys_content_t``: los archivos de configuración en ``/etc/nginx/conf.d/`` llevan ``httpd_config_t``, mientras el contenido estático servido al público en ``/srv/webapp/public`` lleva ``httpd_sys_content_t``.
+* ``changed_when: false`` en ``/usr/sbin/nginx -t``: indica a Ansible que esta comprobación de sintaxis es de solo lectura y no altera el servidor, preservando ``changed=0`` en corridas subsecuentes.
+* ``append: true`` al agregar ``nginx`` al grupo ``webapp``: añade el grupo secundario sin sobrescribir ni borrar otros grupos a los que ya pertenezca el usuario ``nginx``.
 
 .. code-block:: yaml
 
@@ -683,7 +722,7 @@ Despliegas el HTML dinámico y el archivo de configuración en ``/etc/nginx/conf
            cmd: /usr/sbin/nginx -t
          changed_when: false
 
-       - name: Agregar usuario nginx al grupo complementario de webapp para traversal de directorios
+       - name: Agregar usuario nginx al grupo complementario de webapp para recorrido de directorios
          ansible.builtin.user:
            name: nginx
            groups: "{{ webapp_service_group }}"
@@ -693,7 +732,10 @@ Despliegas el HTML dinámico y el archivo de configuración en ``/etc/nginx/conf
 Bloque 5: Políticas de Seguridad con SELinux y Firewalld
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Garantizas que SELinux opere en modo **Enforcing** con cero compromisos de seguridad, habilitas el cortafuegos con el servicio ``http`` permanente e inmediato, y aseguras el arranque del demonio Nginx:
+Aseguras la postura de seguridad y levantas ``firewalld`` antes de iniciar ``nginx``:
+
+* ``policy: targeted`` es la política predeterminada de CentOS Stream 10 y RHEL: confina demonios de red expuestos como Nginx sin estorbar sesiones interactivas de administración.
+* ``permanent: true`` junto con ``immediate: true`` persiste la regla del servicio ``http`` en disco para sobrevivir reinicios y la aplica al instante sobre el cortafuegos activo.
 
 .. code-block:: yaml
 
@@ -724,7 +766,7 @@ Garantizas que SELinux opere en modo **Enforcing** con cero compromisos de segur
 Bloque 6: Manejadores de Estado o ``handlers``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Los manejadores solo se ejecutan cuando una tarea emite una notificación mediante ``notify``, evitando recargas innecesarias cuando el sistema ya se encuentra en el estado deseado:
+Los manejadores se ejecutan una sola vez al final del Play únicamente si alguna tarea los notificó con ``notify``, evitando recargas innecesarias cuando nada cambió:
 
 .. code-block:: yaml
 
@@ -737,7 +779,7 @@ Los manejadores solo se ejecutan cuando una tarea emite una notificación median
 Consolidación y Verificación del Archivo ``playbook.yaml``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Abre tu editor de texto favorito en la terminal, por ejemplo ``nano playbook.yaml``, ``micro playbook.yaml`` o ``vim playbook.yaml``, y consolida los bloques en tu archivo final, o utiliza el siguiente comando de referencia asegurando la indentación exacta de dos espacios:
+Consolida los seis bloques en ``~/lab-ansible/playbook.yaml`` respetando estrictamente la indentación de dos espacios:
 
 .. code-block:: bash
 
@@ -759,7 +801,6 @@ Abre tu editor de texto favorito en la terminal, por ejemplo ``nano playbook.yam
          - firewalld
          - chrony
          - curl
-         - jq
 
      tasks:
        - name: Instalar paquetes esenciales del sistema y repositorio EPEL 10
@@ -835,7 +876,7 @@ Abre tu editor de texto favorito en la terminal, por ejemplo ``nano playbook.yam
            cmd: /usr/sbin/nginx -t
          changed_when: false
 
-       - name: Agregar usuario nginx al grupo complementario de webapp para traversal de directorios
+       - name: Agregar usuario nginx al grupo complementario de webapp para recorrido de directorios
          ansible.builtin.user:
            name: nginx
            groups: "{{ webapp_service_group }}"
@@ -874,7 +915,7 @@ Abre tu editor de texto favorito en la terminal, por ejemplo ``nano playbook.yam
    EOF
 
 .. note::
-   **Nota técnica sobre SELinux con** ``setype`` **frente a** ``semanage fcontext`` **:** En este Playbook utilizas ``setype: httpd_sys_content_t`` en los módulos ``file`` y ``template``. Esto aplica el contexto directamente sobre el inodo en los atributos extendidos del sistema de archivos o ``xattr``, de forma idéntica a ejecutar ``chcon``. Es una solución ligera que no requiere instalar herramientas adicionales de políticas en el nodo gestionado. En entornos corporativos donde se ejecuten limpiezas rutinarias con ``restorecon``, la política base de SELinux en ``/srv`` devolvería los archivos a ``var_t``. En el Reto 4 explorarás cómo persistir reglas permanentes en la base de datos de SELinux con ``semanage fcontext`` o el módulo ``community.general.sefcontext``.
+   **Nota técnica sobre SELinux con** ``setype`` **frente a** ``semanage fcontext`` **:** En este Playbook utilizas ``setype: httpd_sys_content_t`` en los módulos ``file`` y ``template``. Esto aplica el contexto directamente sobre los atributos extendidos ``xattr`` del inodo, de manera análoga a ``chcon``, sin exigir paquetes adicionales de políticas en el servidor gestionado. Si alguien ejecutara ``restorecon -Rv /srv/webapp``, la política base devolvería ``/srv`` a ``var_t``. En el Reto 4 aprenderás a registrar reglas persistentes con ``semanage fcontext`` o ``community.general.sefcontext``.
 
 Verifica la sintaxis del Playbook sin ejecutarlo:
 
@@ -882,7 +923,7 @@ Verifica la sintaxis del Playbook sin ejecutarlo:
 
    ansible-playbook --syntax-check playbook.yaml
 
-Si la sintaxis es correcta, el comando confirmará: ``playbook: playbook.yaml``.
+Si no hay errores, la salida confirmará: ``playbook: playbook.yaml``.
 
 Paso E: Ejecución del Playbook y Prueba de Idempotencia
 -------------------------------------------------------
@@ -893,112 +934,174 @@ Ejecuta el Playbook por primera vez:
 
    ansible-playbook playbook.yaml
 
-Verás cómo Ansible ejecuta cada tarea en orden. Al finalizar, presentará el resumen de ejecución llamado *PLAY RECAP*:
+Ansible ejecutará cada tarea en orden y al finalizar imprimirá el resumen ``PLAY RECAP``:
 
 .. code-block:: text
 
    PLAY RECAP *********************************************************************
    cherry-node   : ok=16   changed=13   unreachable=0    failed=0    skipped=0
 
-Observa que ``changed=13``: Ansible detectó que los paquetes no estaban instalados, los usuarios y directorios no existían y los archivos faltaban, por lo que aplicó los cambios necesarios para alcanzar el estado deseado.
+El conteo exacto de ``changed`` en la primera ejecución puede variar ligeramente según qué servicios como ``chronyd`` o ``firewalld`` vengan ya activos en tu imagen base; lo relevante es que las tareas aplicadas alcancen el estado deseado sin errores y la segunda corrida converja a cero cambios.
 
-Ahora realiza la prueba de verificación HTTP desde tu estación de control:
+Comprueba la respuesta HTTP desde tu nodo de control respetando tiempos límite estrictos en ``curl``:
 
 .. code-block:: bash
 
-   curl -s "http://${IP_DEL_SERVIDOR}" | grep "Servidor Desplegado con Ansible"
+   curl -fsS --connect-timeout 5 --max-time 10 "http://${IP_DEL_SERVIDOR}" | grep "Servidor Desplegado con Ansible"
 
-Verás la línea correspondiente confirmando que Nginx está sirviendo el contenido con permisos y contexto SELinux correctos.
+Verifica también la postura de seguridad, contextos SELinux, ausencia de denegaciones AVC, cortafuegos y servicios activos directamente en el servidor objetivo:
+
+.. code-block:: bash
+
+   # Confirmar modo Enforcing de SELinux con módulo ad-hoc
+   ansible -m ansible.builtin.command -a "getenforce" webservers
+
+   # Inspeccionar permisos FHS 3.0, etiquetas SELinux, bitácora AVC, firewalld y servicios
+   ssh "root@${IP_DEL_SERVIDOR}" 'ls -laZ /srv/webapp /srv/webapp/public /etc/nginx/conf.d/webapp.conf'
+   ssh "root@${IP_DEL_SERVIDOR}" 'ausearch -m AVC,USER_AVC -ts recent </dev/null || true'
+   ssh "root@${IP_DEL_SERVIDOR}" 'firewall-cmd --list-services && systemctl is-active nginx chronyd firewalld'
+
+Confirmarás ``Enforcing`` en ``getenforce``, contextos ``httpd_sys_content_t`` bajo ``/srv/webapp`` y ``httpd_config_t`` en ``/etc/nginx/conf.d/webapp.conf``, salida ``<no matches>`` en ``ausearch`` indicando cero denegaciones SELinux, el servicio ``http`` listado en ``firewall-cmd`` y estado ``active`` en los tres demonios.
 
 La Prueba de Fuego: Idempotencia Absoluta
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Vuelve a ejecutar exactamente el mismo comando:
+Vuelve a ejecutar exactamente el mismo Playbook:
 
 .. code-block:: bash
 
    ansible-playbook playbook.yaml
 
-Observa atentamente el resultado del resumen:
+Observa atentamente el resumen ``PLAY RECAP``:
 
 .. code-block:: text
 
    PLAY RECAP *********************************************************************
    cherry-node   : ok=15   changed=0    unreachable=0    failed=0    skipped=0
 
-**``changed=0``**. Esto demuestra el principio fundamental de la **idempotencia**: el sistema ya se encuentra exactamente en el estado deseado, por lo que Ansible no modifica nada, no reinicia servicios innecesariamente y no altera el sistema operativo.
+``changed=0``. Esto demuestra la **idempotencia** real: el servidor ya coincide con la declaración de estado, por lo que Ansible no reescribe archivos, no dispara el manejador y no reinicia ningún servicio innecesariamente.
 
 Paso F: Reconstrucción y Recuperación ante Desvío o *Configuration Drift*
 -------------------------------------------------------------------------
 
-El desvío de configuración o *drift* ocurre cuando alguien modifica un archivo a mano por SSH, detiene un servicio accidentalmente o una actualización rompe un ajuste.
+El desvío de configuración o *drift* ocurre cuando alguien edita o borra un archivo a mano por SSH, detiene un servicio por accidente o una actualización rompe un ajuste.
 
-Provoca un desvío deliberado conectándote al servidor y alterando el estado:
+Provoca un desvío controlado en el servidor objetivo:
 
 .. code-block:: bash
 
-   # Conéctate y altera la configuración intencionalmente
+   # Detener Nginx y borrar su archivo de configuración a propósito
    ssh "root@${IP_DEL_SERVIDOR}" "systemctl stop nginx && rm -f /etc/nginx/conf.d/webapp.conf"
 
-Si consultas el servicio web ahora con ``curl http://<IP_DEL_SERVIDOR>``, fallará con un error de conexión rechazada.
+Si consultas el servicio ahora con ``curl -fsS --connect-timeout 5 --max-time 10 "http://${IP_DEL_SERVIDOR}"``, fallará con error de conexión rechazada.
 
-En un esquema de administración tradicional, tendrías que recordar qué se borró o qué comando faltó ejecutar. Con Ansible, simplemente ejecutas de nuevo tu Playbook:
+En lugar de reconstruir a mano qué faltaba, vuelve a ejecutar tu Playbook:
 
 .. code-block:: bash
 
    ansible-playbook playbook.yaml
 
-Ansible detectará automáticamente que el archivo ``/etc/nginx/conf.d/webapp.conf`` falta y que el servicio ``nginx`` está detenido. Restaurará el archivo con su contexto SELinux correspondiente, reactivará el servicio y devolverá el servidor al 100% de operatividad:
+Ansible detectará que falta ``/etc/nginx/conf.d/webapp.conf`` y que ``nginx`` está detenido. Aplicará exactamente **tres cambios**: recrear el archivo de configuración con su contexto SELinux ``httpd_config_t``, iniciar el servicio ``nginx`` y ejecutar el manejador ``Recargar servicio Nginx`` notificado por la plantilla restaurada:
 
 .. code-block:: text
 
    PLAY RECAP *********************************************************************
-   cherry-node   : ok=16   changed=2    unreachable=0    failed=0    skipped=0
+   cherry-node   : ok=16   changed=3    unreachable=0    failed=0    skipped=0
 
-Vuelve a probar con ``curl``:
+Verifica las cabeceras HTTP con ``curl``:
 
 .. code-block:: bash
 
-   curl -I "http://${IP_DEL_SERVIDOR}"
+   curl -fsS --connect-timeout 5 --max-time 10 -I "http://${IP_DEL_SERVIDOR}"
 
-El servidor responderá con ``HTTP/1.1 200 OK``.
+El servidor responderá de nuevo con ``HTTP/1.1 200 OK``.
+
+Paso G: Simulación Segura en Modo Prueba y Diagnóstico Operativo
+----------------------------------------------------------------
+
+Antes de aplicar modificaciones de tu Playbook en servidores productivos, ejecuta una simulación sin alterar el sistema con ``--check`` combinada con ``--diff`` para inspeccionar línea por línea cualquier cambio pendiente en archivos o plantillas:
+
+.. code-block:: bash
+
+   ansible-playbook --check --diff playbook.yaml
+
+Cuando necesites depurar tráfico o recargas de Nginx en el nodo gestionado, inspecciona directamente su bitácora estructurada en ``systemd-journald``:
+
+.. code-block:: bash
+
+   ssh "root@${IP_DEL_SERVIDOR}" 'journalctl -u nginx -n 20 --no-pager'
+
+Paso H: Mantenimiento Continuo y Actualizaciones Automáticas con DNF5
+---------------------------------------------------------------------
+
+En **CentOS Stream 10**, **DNF5** declara ``/etc/dnf/automatic.conf`` como archivo ``%ghost``: no existe en disco hasta copiar la plantilla de referencia instalada en ``/usr/share/dnf5/dnf5-plugins/automatic.conf``. Activa las actualizaciones desatendidas en el servidor objetivo protegiendo esa condición antes de editar la configuración:
+
+.. code-block:: bash
+
+   ssh "root@${IP_DEL_SERVIDOR}" bash -s << 'EOF'
+   set -euo pipefail
+   dnf -y install dnf-automatic
+   [[ -f /etc/dnf/automatic.conf ]] || cp /usr/share/dnf5/dnf5-plugins/automatic.conf /etc/dnf/automatic.conf
+   sed -i 's/^apply_updates = .*/apply_updates = yes/' /etc/dnf/automatic.conf
+   systemctl --now enable dnf-automatic.timer
+   systemctl --no-pager status dnf-automatic.timer
+   EOF
 
 3. Automatización Declarativa con OpenTofu e Infraestructura como Código
 ========================================================================
 
-Hasta este punto has configurado el sistema operativo utilizando un servidor previamente existente. Pero en la ingeniería moderna de infraestructura, el aprovisionamiento de la máquina virtual también se define como código.
+Hasta ahora configuraste el sistema operativo sobre un servidor creado manualmente. En la ingeniería moderna de infraestructura, la creación de la máquina virtual también se define como código reproducible.
 
-**OpenTofu** y **Ansible** forman una combinación perfecta:
+**OpenTofu** y **Ansible** se complementan por diseño:
 
-* **OpenTofu** aprovisiona el hardware, las redes, los discos y la máquina virtual en la nube.
-* **Ansible** orquesta el software, los paquetes, las políticas y los servicios dentro del sistema operativo.
+* **OpenTofu** aprovisiona el cómputo, la red y el acceso SSH en la nube.
+* **Ansible** orquesta paquetes, usuarios, permisos FHS 3.0, SELinux, cortafuegos y servicios dentro del sistema operativo.
 
-Manifiestos de OpenTofu en el Repositorio
------------------------------------------
+Instalación y Versión de OpenTofu
+---------------------------------
 
-Ingresa al subdirectorio ``tofu/``:
+En la Sección 1F instalaste **OpenTofu** en tu nodo de control. Este módulo requiere ``>= 1.8.0``; confirma tu versión actual con ``tofu version`` antes de continuar.
+
+Clonar el Repositorio y Explorar Manifiestos
+--------------------------------------------
+
+Regresa a tu directorio personal, clona el repositorio oficial de la serie e ingresa a la carpeta del Cómo 03:
 
 .. code-block:: bash
 
-   cd tofu
+   cd ~
+   git clone https://gitlab.com/renich/cherry-servers.git
+   cd cherry-servers/03-ansible
 
-Explora los archivos disponibles:
+Si llegaste directo a esta sección sin ejecutar la Sección 1H, instala primero la colección requerida con ``ansible-galaxy collection install -r requirements.yaml``.
 
-* ``provider.tf``: Declara el proveedor de Cherry Servers ``cherryservers/cherryservers ~> 1.5.3``.
-* ``variables.tf``: Define los parámetros configurables: ID del proyecto, región, plan del servidor y clave SSH.
-* ``main.tf``: Registra tu clave pública SSH y crea la máquina virtual con CentOS Stream 10.
-* ``outputs.tf``: Expone la dirección IP asignada y el comando para ejecutar Ansible.
+Explora los archivos versionados de este módulo:
+
+* `tofu/provider.tf <tofu/provider.tf>`__: fija OpenTofu ``>= 1.8.0`` y el proveedor oficial ``cherryservers/cherryservers ~> 1.5.3``.
+* `tofu/variables.tf <tofu/variables.tf>`__: define el token de API, ``project_id``, región, plan ``B1-1-1gb-20s-shared``, imagen CentOS Stream 10, ``ssh_public_key`` y el identificador opcional ``ssh_key_id``.
+* `tofu/main.tf <tofu/main.tf>`__: registra o reutiliza tu llave SSH Ed25519 con precondición de validación y aprovisiona la instancia limpia. A diferencia de otros Cómos de la serie, ``tofu/main.tf`` omite intencionalmente ``user_data``, porque aquí OpenTofu entrega solo la máquina virtual base y delega toda la configuración del sistema operativo a Ansible por SSH.
+* `tofu/outputs.tf <tofu/outputs.tf>`__: expone ``server_ip``, ``ssh_command``, ``web_url`` y ``ansible-playbook playbook.yaml``.
+* `playbook.yaml <playbook.yaml>`__: el Playbook declarativo completo equivalente al que construiste paso a paso en la Sección 2.
 
 Configurar Variables Locales y Desplegar con ``tofu apply``
 -----------------------------------------------------------
 
-Copia el archivo de variables de ejemplo:
+Ingresa al subdirectorio ``tofu/``, copia la plantilla de variables y restringe sus permisos a ``0600`` para proteger tu token de API:
 
 .. code-block:: bash
 
+   cd tofu
    cp terraform.tfvars.example terraform.tfvars
+   chmod 600 terraform.tfvars
 
-Edita ``terraform.tfvars`` con tus credenciales reales:
+Antes de editar ``terraform.tfvars``, reúne cada valor desde su fuente oficial:
+
+* ``cherry_auth_token``: genéralo en `API Keys del Portal de Cherry Servers <https://portal.cherryservers.com/settings/api-keys>`__ bajo **Settings** -> **API Keys** y cópialo al crearlo.
+* ``project_id``: entra en el portal a **Projects** y copia el identificador numérico de tu proyecto activo, por ejemplo ``123456``.
+* ``ssh_public_key``: copia la salida completa de ``cat ~/.ssh/id_ed25519.pub``.
+* ``ssh_key_id``: campo opcional; si tu clave pública Ed25519 ya fue registrada en el portal bajo **SSH Keys** durante la práctica manual de la Sección 1E, descomenta ``ssh_key_id`` con su ID numérico para reutilizarla y evitar un error de clave duplicada.
+
+Edita ``terraform.tfvars`` con tus datos reales:
 
 .. code-block:: hcl
 
@@ -1009,22 +1112,27 @@ Edita ``terraform.tfvars`` con tus credenciales reales:
    server_image      = "centos_stream_10_64bit"
    server_name       = "0.ansible.linenes.tld"
    ssh_public_key    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... tu_correo@ejemplo.com"
+   # ssh_key_id      = "20003"
    spot_instance     = false
 
-Inicializa y valida el entorno:
+Inicializa los proveedores, valida los manifiestos y revisa el plan de ejecución:
 
 .. code-block:: bash
 
    tofu init
    tofu validate
+   tofu plan
 
-Despliega el servidor en Cherry Servers:
+.. warning::
+   **Disciplina de costos antes de aplicar:** ejecutar ``tofu apply`` crea un servidor real facturable por hora en tu cuenta de Cherry Servers, aproximadamente ``~$0.015 EUR/hora`` para ``Cloud VPS 1``. Destruye siempre el laboratorio en la **Sección 4** al terminar tus pruebas.
+
+Despliega la instancia:
 
 .. code-block:: bash
 
    tofu apply
 
-Confirma escribiendo ``yes``. En aproximadamente 60 segundos, OpenTofu creará el servidor e imprimirá la salida con la dirección IP pública:
+Confirma escribiendo ``yes``. En alrededor de un minuto OpenTofu aprovisionará el servidor e imprimirá salidas como las siguientes, donde ``203.0.113.100`` es solo un valor ilustrativo:
 
 .. code-block:: text
 
@@ -1032,82 +1140,93 @@ Confirma escribiendo ``yes``. En aproximadamente 60 segundos, OpenTofu creará e
 
    Outputs:
 
-   ansible_playbook_command = "ansible-playbook -i inventory.ini playbook.yaml"
-   server_ip = "192.0.2.100"
-   ssh_command = "ssh root@192.0.2.100"
-   web_url = "http://192.0.2.100"
+   ansible_playbook_command = "ansible-playbook playbook.yaml"
+   server_ip = "203.0.113.100"
+   ssh_command = "ssh root@203.0.113.100"
+   web_url = "http://203.0.113.100"
 
-Regresa al directorio raíz de este Cómo:
+Regresa a la raíz del módulo ``03-ansible/``, captura dinámicamente la IP asignada en ``IP_DEL_SERVIDOR``, espera hasta que el servidor SSH esté listo, registra su clave de host Ed25519, actualiza ``inventory.ini``, ejecuta el Playbook y verifica el servicio web:
 
 .. code-block:: bash
 
    cd ..
+   export IP_DEL_SERVIDOR="$(tofu -chdir=tofu output -raw server_ip)"
 
-Registra la huella digital SSH del nuevo servidor para mantener la validación estricta de host keys:
+   # Esperar hasta que sshd responda con su clave de host Ed25519
+   until ssh-keyscan -t ed25519 "${IP_DEL_SERVIDOR}" 2>/dev/null | grep -q ssh-ed25519; do sleep 5; done
+   ssh-keyscan -t ed25519 "${IP_DEL_SERVIDOR}" >> ~/.ssh/known_hosts
 
-.. code-block:: bash
-
-   ssh-keyscan -t ed25519 192.0.2.100 >> ~/.ssh/known_hosts
-
-Actualiza la dirección IP en tu archivo ``inventory.ini``:
-
-.. code-block:: bash
-
-   sed -i 's/ansible_host=[^ ]*/ansible_host=192.0.2.100/' inventory.ini
-
-Y ejecuta el Playbook para aprovisionar el servidor completo desde cero:
-
-.. code-block:: bash
-
+   # Actualizar el inventario y aprovisionar el sistema completo con Ansible
+   sed -i "s/ansible_host=[^ ]*/ansible_host=${IP_DEL_SERVIDOR}/" inventory.ini
    ansible-playbook playbook.yaml
 
-En menos de un minuto tendrás un servidor completamente nuevo, configurado, endurecido e idéntico al anterior.
+   # Comprobar la respuesta HTTP del nuevo nodo
+   curl -fsS --connect-timeout 5 --max-time 10 "http://${IP_DEL_SERVIDOR}" | grep "Servidor Desplegado con Ansible"
+
+En menos de un minuto tendrás un servidor completamente nuevo, configurado, endurecido e idéntico al que construiste en tu práctica manual.
 
 4. Destrucción del Servidor y Control de Costos
 ===============================================
 
-Una regla de oro en la administración de sistemas en la nube es la **disciplina de costos**. Cuando termines de realizar tus prácticas y retos, destruye la infraestructura para no acumular cobros:
+Una regla esencial en infraestructura en la nube es la **disciplina de costos**. Al concluir tus pruebas y retos, captura primero la IP asignada para limpiar ``known_hosts``, destruye los recursos creados por OpenTofu, elimina tus credenciales locales y verifica que el estado quede vacío:
 
 .. code-block:: bash
 
-   cd tofu
-   tofu destroy
+   # Desde cherry-servers/03-ansible/: capturar IP antes de destruir el estado
+   export IP_DEL_SERVIDOR="$(tofu -chdir=tofu output -raw server_ip)"
 
-Escribe ``yes`` cuando OpenTofu lo solicite. En unos instantes los recursos se liberarán por completo.
+   # Destruir la infraestructura administrada por OpenTofu
+   tofu -chdir=tofu destroy
 
-Limpia la huella del servidor en tus claves conocidas para evitar advertencias en futuros laboratorios:
+   # Purgar la clave de host, eliminar credenciales locales y confirmar estado vacío
+   ssh-keygen -R "${IP_DEL_SERVIDOR}"
+   rm -f tofu/terraform.tfvars
+   tofu -chdir=tofu state list
 
-.. code-block:: bash
+Escribe ``yes`` cuando ``tofu destroy`` pida confirmación. Si reutilizaste una clave existente mediante ``ssh_key_id``, ``tofu destroy`` eliminará únicamente el servidor y conservará intacta tu llave SSH en Cherry Servers para futuros Cómos. La salida de ``tofu -chdir=tofu state list`` debe quedar completamente vacía.
 
-   ssh-keygen -R 192.0.2.100
+.. warning::
+   **No olvides destruir tus instancias manuales:** ``tofu destroy`` elimina únicamente los recursos creados por OpenTofu en la Sección 3. Entra al **Portal de Cherry Servers** y destruye también el servidor objetivo que creaste manualmente en la **Sección 1E**, así como el servidor de control en la nube si optaste por rentar uno en la **Sección 1A**, para evitar cargos residuales en tu cuenta.
 
 5. Retos de Aprendizaje y Práctica
 ==================================
 
-Pon a prueba tus habilidades de automatización con estos desafíos prácticos diseñados para profundizar en el ecosistema de Ansible:
+Pon a prueba tu criterio operativo con estos cuatro desafíos prácticos sin soluciones prefabricadas:
 
 #. **Reto 1: Migración a Inventario YAML en** ``inventory.yaml``
 
-   * El formato INI es compacto pero limitado en estructuras complejas. Convierte tu ``inventory.ini`` a la sintaxis estructurada oficial de YAML en ``inventory.yaml``. Define la jerarquía de grupos utilizando ``all.children.webservers.hosts`` y variables bajo la directiva ``vars:``. Verifica que funcione ejecutando ``ansible -i inventory.yaml -m ansible.builtin.ping webservers``.
+   * El formato INI es compacto, pero limitado para jerarquías complejas. Convierte ``inventory.ini`` a la sintaxis estructurada oficial de YAML en ``inventory.yaml`` usando ``all.children.webservers.hosts`` y verifica la conectividad con ``ansible -i inventory.yaml -m ansible.builtin.ping webservers``.
 
 #. **Reto 2: Generación Automática del Inventario desde OpenTofu**
 
-   * En lugar de copiar y pegar la dirección IP manualmente tras ejecutar ``tofu apply``, investiga cómo utilizar el recurso ``local_file`` de OpenTofu junto con la función ``templatefile()`` para escribir o actualizar automáticamente el archivo ``inventory.ini`` con la IP pública del servidor aprovisionado.
+   * En lugar de actualizar la IP con ``sed`` tras ``tofu apply``, investiga cómo usar el recurso ``local_file`` de OpenTofu junto con ``templatefile()`` para generar automáticamente ``inventory.ini`` con la IP pública del servidor aprovisionado.
 
 #. **Reto 3: Inventario Dinámico con la API de Cherry Servers y** ``inventory.py``
 
-   * En entornos elásticos, los servidores cambian de IP continuamente. Ansible soporta **inventarios dinámicos** mediante cualquier script ejecutable con permisos ``chmod +x`` que al ejecutarse con la bandera ``--list`` imprima un JSON con la estructura de hosts. Construye un pequeño script en Python que consulte el endpoint ``GET https://api.cherryservers.com/v1/projects/{project_id}/servers`` utilizando tu token de autorización y devuelva los nodos activos para consumirlos directamente con ``ansible-playbook -i inventory.py playbook.yaml``.
+   * En entornos elásticos las direcciones IP cambian con frecuencia. Ansible admite **inventarios dinámicos** mediante cualquier script ejecutable con ``chmod +x`` que al recibir ``--list`` imprima un JSON válido de grupos y hosts. Escribe un script en Python que consulte el punto de acceso ``GET https://api.cherryservers.com/v1/projects/{project_id}/servers`` usando tu token de API y pruébalo con ``ansible-playbook -i inventory.py playbook.yaml``.
 
 #. **Reto 4: Persistencia de Políticas SELinux con** ``semanage fcontext``
 
-   * En este laboratorio aplicaste el contexto directamente en los inodos mediante el módulo ``ansible.builtin.file``. Sin embargo, si en el futuro se ejecuta ``restorecon -Rv /srv/webapp``, el sistema restaurará los contextos por defecto de la política base ``var_t``. Investiga cómo instalar ``policycoreutils-python-utils`` y utilizar el módulo ``community.general.sefcontext``, o comandos equivalentes, para persistir la regla ``/srv/webapp(/.*)? -> httpd_sys_content_t`` en la base de datos central de SELinux, asegurando que ``restorecon`` preserve la etiqueta correcta.
+   * En este laboratorio aplicaste el contexto directamente en los inodos mediante ``setype`` en los módulos ``ansible.builtin.file`` y ``ansible.builtin.template``. Sin embargo, ejecutar ``restorecon -Rv /srv/webapp`` restauraría el tipo base ``var_t``. Investiga cómo instalar ``policycoreutils-python-utils`` y usar ``community.general.sefcontext`` para persistir la regla ``/srv/webapp(/.*)? -> httpd_sys_content_t`` en la base de datos de SELinux, verificando que ``restorecon`` conserve la etiqueta correcta.
+
+Referencias Oficiales
+=====================
+
+* `CentOS Stream: propósito y modelo de entrega continua <https://www.centos.org/centos-stream/>`__
+* `Documentación oficial de Ansible <https://docs.ansible.com/ansible/latest/>`__
+* `Colección ansible.posix en Ansible Docs <https://docs.ansible.com/ansible/latest/collections/ansible/posix/>`__
+* `Colección ansible.builtin en Ansible Docs <https://docs.ansible.com/ansible/latest/collections/ansible/builtin/>`__
+* `Guía oficial de uso de SELinux en RHEL 10 <https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/secure-getting_started_with_selinux>`__
+* `Documentación oficial de Firewalld <https://firewalld.org/documentation/>`__
+* `Documentación oficial de OpenTofu <https://opentofu.org/docs/>`__
 
 Dudas y Preguntas
 -----------------
 
-Si tienes alguna pregunta, encuentras un detalle técnico o deseas compartir cómo resolviste los retos, abre un reporte o inicia una discusión en nuestro repositorio oficial:
+Si tienes alguna pregunta, encuentras un detalle técnico o quieres compartir cómo resolviste los retos, abre una conversación en nuestro repositorio oficial:
 
-`Reportar un issue o consulta en GitLab <https://gitlab.com/renich/cherry-servers/-/issues>`__
+* `Reportar una incidencia o consulta en GitLab <https://gitlab.com/renich/cherry-servers/-/issues>`__
+* Siguiente laboratorio de la serie: `Cómo 04: Primitivas de Infraestructura DNS, NTP y NFSv4 en CentOS Stream 10 <../04-primitives-dns-ntp-nfs/README.rst>`__
 
 Licencia
 ========

@@ -3,45 +3,60 @@ set -euo pipefail
 IFS=$'\n\t'
 
 # =============================================================================
-# Script de Bootstrap (Servidor): Primitivas DNS (BIND 9), NTP (Chrony) y NFSv4.2
+# Script de Bootstrap del Nodo 0: DNS con BIND 9, NTP con Chrony y NFSv4.2
 # =============================================================================
 # Sistema Objetivo: CentOS Stream 10
-# Seguridad:        SELinux en modo Enforcing + Firewalld segmentado por zonas
-# Estándar FHS:     /srv/nfs/compartido (NFSv4.2) y /var/named (BIND 9)
+# Seguridad:        SELinux en modo Enforcing y Firewalld segmentado por zonas
+# Estándar FHS:     /srv/nfs/compartido para NFSv4.2 y /var/named para BIND 9
 # =============================================================================
 
 # Redirigir la salida estándar y de error al registro de user-data y a la consola
 exec > >(tee -a /var/log/user-data.log | logger -t user-data -s 2>/dev/console) 2>&1
 
-echo "[+] Iniciando despliegue del Nodo Servidor de Primitivas (DNS, NTP y NFSv4.2)..."
+echo "[+] Iniciando despliegue del Nodo 0, servidor de primitivas DNS, NTP y NFSv4.2..."
 
 # 1. Configurar el nombre de host del nodo servidor
-DNS_DOMAIN_EFFECTIVE="${DNS_DOMAIN:-linenes.tld}"
-SERVER_NAME_EFFECTIVE="${SERVER_NAME:-0.primitivas.${DNS_DOMAIN_EFFECTIVE}}"
-hostnamectl set-hostname "${SERVER_NAME_EFFECTIVE}" || true
-
-# 2. Detectar la dirección IP privada interna (RFC 1918) o caer en la IP global primaria
-SERVER_PRIV_IP=$(ip -4 -o addr show scope global | awk '$2 !~ /^(podman|veth|br-|cni)/ && $4 ~ /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/ {print $4}' | cut -d/ -f1 | head -n1)
-if [[ -z "${SERVER_PRIV_IP}" ]]; then
-  SERVER_PRIV_IP=$(ip -4 -o addr show scope global | awk '$2 !~ /^(podman|veth|br-|cni)/ {print $4}' | cut -d/ -f1 | head -n1)
+domain="${DNS_DOMAIN}"
+if [[ -z "$domain" ]]; then
+  domain="linenes.tld"
 fi
 
-IFS='.' read -r OCT1 OCT2 OCT3 OCT4 <<< "${SERVER_PRIV_IP}"
-REV_ZONE="${OCT3}.${OCT2}.${OCT1}.in-addr.arpa"
-SERVER_SHORT_HOST="${SERVER_NAME_EFFECTIVE%."${DNS_DOMAIN_EFFECTIVE}"}"
-if [[ -z "${SERVER_SHORT_HOST}" ]]; then
-  SERVER_SHORT_HOST="0.primitivas"
+node_fqdn="${SERVER_NAME}"
+if [[ -z "$node_fqdn" ]]; then
+  node_fqdn="0.primitivas.$domain"
+fi
+hostnamectl set-hostname "$node_fqdn" || true
+
+# 2. Detectar la dirección IP privada interna RFC 1918; fallar en cerrado si no existe
+server_priv_ip=$(ip -4 -o addr show scope global | awk '$2 !~ /^(podman|veth|br-|cni)/ && $4 ~ /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/ {print $4}' | cut -d/ -f1 | head -n1)
+if [[ -z "$server_priv_ip" ]]; then
+  echo "[-] Error: No se detectó una dirección IPv4 privada RFC 1918 en la VLAN interna." >&2
+  exit 1
 fi
 
-echo "[+] IP de servicio detectada: ${SERVER_PRIV_IP} (Zona inversa: ${REV_ZONE})"
+IFS='.' read -r oct1 oct2 oct3 oct4 <<< "$server_priv_ip"
+rev_zone="$oct3.$oct2.$oct1.in-addr.arpa"
+
+server_short_host=$(awk -v host="$node_fqdn" -v dom=".$domain" 'BEGIN {
+  if (length(host) > length(dom) && substr(host, length(host) - length(dom) + 1) == dom) {
+    print substr(host, 1, length(host) - length(dom))
+  } else {
+    print host
+  }
+}')
+if [[ -z "$server_short_host" || "$server_short_host" == "$domain" ]]; then
+  server_short_host="0.primitivas"
+fi
+
+echo "[+] IP privada detectada: $server_priv_ip | Zona inversa: $rev_zone"
 
 # 3. Instalar paquetes RPM nativos desde BaseOS y AppStream
 echo "[+] Instalando BIND 9, Chrony, NFSv4, utilidades SELinux, Firewalld y DNF Automatic..."
 dnf -y install bind bind-utils chrony nfs-utils policycoreutils-python-utils firewalld dnf-automatic
 
-# 4. Configurar Firewalld ANTES de iniciar los demonios de red
-#    Aislamos DNS, NTP y NFS exclusivamente en la zona 'internal' (redes privadas RFC 1918)
-echo "[+] Configurando segmentación de zonas en Firewalld (zona internal vs public)..."
+# 4. Configurar Firewalld antes de iniciar los demonios de red
+#    Aísla DNS, NTP y NFS exclusivamente en la zona internal para redes privadas RFC 1918
+echo "[+] Configurando segmentación de zonas en Firewalld entre internal y public..."
 systemctl --now enable firewalld
 firewall-cmd --permanent --zone=internal --add-source=10.0.0.0/8
 firewall-cmd --permanent --zone=internal --add-source=192.168.0.0/16
@@ -51,11 +66,11 @@ firewall-cmd --permanent --zone=internal --add-service=ntp
 firewall-cmd --permanent --zone=internal --add-service=nfs
 firewall-cmd --reload
 
-# 5. Configurar BIND 9 (Servidor DNS Autoritativo y Recursivo Interno)
-echo "[+] Configurando BIND 9 (/etc/named.conf y archivos de zona para ${DNS_DOMAIN_EFFECTIVE})..."
+# 5. Configurar BIND 9 como servidor DNS autoritativo y recursivo interno
+echo "[+] Configurando BIND 9 en /etc/named.conf y archivos de zona para $domain..."
 cat << EOF > /etc/named.conf
 // =============================================================================
-// Configuración de BIND 9: DNS Autoritativo y Recursivo Interno (${DNS_DOMAIN_EFFECTIVE})
+// Configuración de BIND 9: DNS Autoritativo y Recursivo Interno ($domain)
 // =============================================================================
 
 acl "red_interna" {
@@ -67,7 +82,7 @@ acl "red_interna" {
 };
 
 options {
-    listen-on port 53 { 127.0.0.1; ${SERVER_PRIV_IP}; };
+    listen-on port 53 { 127.0.0.1; $server_priv_ip; };
     listen-on-v6 port 53 { ::1; };
     directory          "/var/named";
     dump-file          "/var/named/data/cache_dump.db";
@@ -109,15 +124,15 @@ zone "." IN {
     file "named.ca";
 };
 
-zone "${DNS_DOMAIN_EFFECTIVE}" IN {
+zone "$domain" IN {
     type primary;
-    file "${DNS_DOMAIN_EFFECTIVE}.zone";
+    file "$domain.zone";
     allow-update { "red_interna"; };
 };
 
-zone "${REV_ZONE}" IN {
+zone "$rev_zone" IN {
     type primary;
-    file "${DNS_DOMAIN_EFFECTIVE}.rev";
+    file "$domain.rev";
     allow-update { "red_interna"; };
 };
 
@@ -125,9 +140,9 @@ include "/etc/named.rfc1912.zones";
 include "/etc/named.root.key";
 EOF
 
-cat << EOF > "/var/named/${DNS_DOMAIN_EFFECTIVE}.zone"
+cat << EOF > "/var/named/$domain.zone"
 \$TTL 86400
-@   IN  SOA ns1.${DNS_DOMAIN_EFFECTIVE}. admin.${DNS_DOMAIN_EFFECTIVE}. (
+@   IN  SOA ns1.$domain. admin.$domain. (
             2026102201  ; Serial (AAAAMMDDNN)
             3600        ; Refresh (1 hora)
             1800        ; Retry (30 minutos)
@@ -135,20 +150,20 @@ cat << EOF > "/var/named/${DNS_DOMAIN_EFFECTIVE}.zone"
             86400 )     ; Minimum TTL (1 día)
 
 ; Servidor de nombres autoritativo
-@                       IN  NS      ns1.${DNS_DOMAIN_EFFECTIVE}.
+@                       IN  NS      ns1.$domain.
 
 ; Registros A de infraestructura
-ns1                     IN  A       ${SERVER_PRIV_IP}
-${SERVER_SHORT_HOST}    IN  A       ${SERVER_PRIV_IP}
+ns1                     IN  A       $server_priv_ip
+$server_short_host    IN  A       $server_priv_ip
 
 ; Alias canónicos de servicios (CNAME)
-ntp                     IN  CNAME   ${SERVER_SHORT_HOST}.${DNS_DOMAIN_EFFECTIVE}.
-nfs                     IN  CNAME   ${SERVER_SHORT_HOST}.${DNS_DOMAIN_EFFECTIVE}.
+ntp                     IN  CNAME   $server_short_host.$domain.
+nfs                     IN  CNAME   $server_short_host.$domain.
 EOF
 
-cat << EOF > "/var/named/${DNS_DOMAIN_EFFECTIVE}.rev"
+cat << EOF > "/var/named/$domain.rev"
 \$TTL 86400
-@   IN  SOA ns1.${DNS_DOMAIN_EFFECTIVE}. admin.${DNS_DOMAIN_EFFECTIVE}. (
+@   IN  SOA ns1.$domain. admin.$domain. (
             2026102201  ; Serial (AAAAMMDDNN)
             3600        ; Refresh (1 hora)
             1800        ; Retry (30 minutos)
@@ -156,28 +171,29 @@ cat << EOF > "/var/named/${DNS_DOMAIN_EFFECTIVE}.rev"
             86400 )     ; Minimum TTL (1 día)
 
 ; Servidor de nombres autoritativo
-@       IN  NS      ns1.${DNS_DOMAIN_EFFECTIVE}.
+@       IN  NS      ns1.$domain.
 
 ; Registros PTR (Resolución Inversa)
-${OCT4} IN  PTR     ${SERVER_SHORT_HOST}.${DNS_DOMAIN_EFFECTIVE}.
+$oct4 IN  PTR     $server_short_host.$domain.
 EOF
 
 chmod 770 /var/named
 chown root:named /etc/named.conf
 chmod 640 /etc/named.conf
-chown named:named "/var/named/${DNS_DOMAIN_EFFECTIVE}.zone" "/var/named/${DNS_DOMAIN_EFFECTIVE}.rev"
-chmod 640 "/var/named/${DNS_DOMAIN_EFFECTIVE}.zone" "/var/named/${DNS_DOMAIN_EFFECTIVE}.rev"
+chown named:named "/var/named/$domain.zone" "/var/named/$domain.rev"
+chmod 640 "/var/named/$domain.zone" "/var/named/$domain.rev"
 setsebool -P named_write_master_zones on || true
 restorecon -Rv /etc/named.conf /var/named
 
 named-checkconf -z /etc/named.conf
-named-checkzone -i full "${DNS_DOMAIN_EFFECTIVE}" "/var/named/${DNS_DOMAIN_EFFECTIVE}.zone"
-named-checkzone -i full "${REV_ZONE}" "/var/named/${DNS_DOMAIN_EFFECTIVE}.rev"
+named-checkzone -i full "$domain" "/var/named/$domain.zone"
+named-checkzone -i full "$rev_zone" "/var/named/$domain.rev"
 
 systemctl --now enable named.service
+systemctl restart named.service
 
-# 6. Configurar Chrony (Servidor NTP de Estrato Interno)
-echo "[+] Configurando Chrony como servidor de tiempo NTP (/etc/chrony.conf)..."
+# 6. Configurar Chrony como servidor NTP de estrato interno
+echo "[+] Configurando Chrony como servidor de tiempo NTP en /etc/chrony.conf..."
 cat << 'EOF' > /etc/chrony.conf
 # =============================================================================
 # Configuración de Chrony: Servidor NTP de Estrato Interno
@@ -203,7 +219,7 @@ restorecon -v /etc/chrony.conf
 systemctl --now enable chronyd.service
 systemctl restart chronyd.service
 
-# 7. Configurar Servidor NFSv4.2 Puro bajo FHS 3.0 y SELinux Enforcing
+# 7. Configurar servidor NFSv4.2 puro bajo FHS 3.0 y SELinux Enforcing
 echo "[+] Configurando almacenamiento compartido NFSv4.2 en /srv/nfs/compartido..."
 mkdir -p /srv/nfs/compartido
 chown root:root /srv/nfs
@@ -213,7 +229,7 @@ chmod 755 /srv/nfs/compartido
 
 # Crear archivo testigo de bienvenida en el recurso exportado
 cat << EOF > /srv/nfs/compartido/bienvenida.txt
-Almacenamiento compartido NFSv4.2 activo desde ${SERVER_NAME_EFFECTIVE} (${SERVER_PRIV_IP}).
+Almacenamiento compartido NFSv4.2 activo desde $node_fqdn ($server_priv_ip).
 SELinux en modo Enforcing con contexto nfs_t bajo FHS 3.0.
 EOF
 chown nobody:nobody /srv/nfs/compartido/bienvenida.txt
@@ -223,7 +239,7 @@ chmod 644 /srv/nfs/compartido/bienvenida.txt
 semanage fcontext -a -t nfs_t "/srv/nfs(/.*)?" 2>/dev/null || semanage fcontext -m -t nfs_t "/srv/nfs(/.*)?"
 restorecon -Rv /srv/nfs
 
-# Forzar exclusivamente NFSv4.1 y NFSv4.2 deshabilitando protocolos legados (NFSv3)
+# Forzar exclusivamente NFSv4.1 y NFSv4.2 deshabilitando protocolos legados como NFSv3
 cat << 'EOF' > /etc/nfs.conf
 [general]
 [nfsd]
@@ -248,9 +264,9 @@ systemctl --now enable nfs-server.service
 systemctl restart nfs-server.service
 exportfs -rav
 
-# 8. Configurar actualizaciones automáticas de seguridad (DNF5)
+# 8. Configurar actualizaciones automáticas del sistema en DNF5
 [[ -f /etc/dnf/automatic.conf ]] || cp /usr/share/dnf5/dnf5-plugins/automatic.conf /etc/dnf/automatic.conf 2>/dev/null || true
 sed -i 's/^apply_updates = .*/apply_updates = yes/' /etc/dnf/automatic.conf || true
 systemctl --now enable dnf-automatic.timer
 
-echo "[+] Despliegue del Nodo Servidor de Primitivas completado con éxito."
+echo "[+] Despliegue del Nodo 0 completado con éxito."

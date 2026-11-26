@@ -1,5 +1,5 @@
 # =============================================================================
-# 4. Salidas del Despliegue (Outputs)
+# 4. Salidas del Despliegue
 # =============================================================================
 # Datos que OpenTofu imprime en la terminal cuando la creación concluye.
 
@@ -24,6 +24,6 @@ output "web_url" {
 }
 
 output "ansible_playbook_command" {
-  description = "Comando para ejecutar el playbook de Ansible (ejecutar desde la raíz del módulo: 03-ansible/)"
-  value       = "ansible-playbook -i inventory.ini playbook.yaml"
+  description = "Comando para ejecutar el Playbook desde la raíz del módulo 03-ansible"
+  value       = "ansible-playbook playbook.yaml"
 }

@@ -1,11 +1,11 @@
 # =============================================================================
-# Plantilla de Variables Locales; NO subir terraform.tfvars a Git
+# Plantilla de Variables Locales; no subir terraform.tfvars a Git
 # =============================================================================
 
 cherry_auth_token = "TU_API_TOKEN_AQUI"
 project_id        = 123456
 ssh_public_key    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... tu_correo@ejemplo.com"
-# ssh_key_id      = "20003" # Descomenta si tu clave ya está registrada en Cherry Servers
+# ssh_key_id      = "TU_SSH_KEY_ID" # Descomenta si tu llave SSH ya está registrada en Cherry Servers
 region            = "LT-Siauliai"
 server_plan       = "B1-1-1gb-20s-shared"
 server_image      = "centos_stream_10_64bit"

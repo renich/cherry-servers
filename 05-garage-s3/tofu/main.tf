@@ -4,13 +4,13 @@
 
 # Paso 1: Registra tu clave pública SSH en el proyecto de Cherry Servers (si no reutilizas ssh_key_id)
 resource "cherryservers_ssh_key" "deployer" {
-  count      = var.ssh_key_id == "" ? 1 : 0
+  count      = trimspace(var.ssh_key_id) == "" ? 1 : 0
   name       = "garage-deployer-key"
-  public_key = var.ssh_public_key
+  public_key = trimspace(var.ssh_public_key)
 
   lifecycle {
     precondition {
-      condition     = var.ssh_key_id != "" || trimspace(var.ssh_public_key) != ""
+      condition     = trimspace(var.ssh_key_id) != "" || trimspace(var.ssh_public_key) != ""
       error_message = "Debes proporcionar ssh_key_id o ssh_public_key para acceder por SSH."
     }
   }
@@ -52,7 +52,7 @@ resource "cherryservers_server" "garage_node_0" {
 }
 
 locals {
-  active_ssh_key_id = var.ssh_key_id != "" ? var.ssh_key_id : cherryservers_ssh_key.deployer[0].id
+  active_ssh_key_id = trimspace(var.ssh_key_id) == "" ? cherryservers_ssh_key.deployer[0].id : trimspace(var.ssh_key_id)
   node0_public_ip   = one([for ip in cherryservers_server.garage_node_0.ip_addresses : ip.address if ip.type == "primary-ip"])
   node0_private_ip  = one([for ip in cherryservers_server.garage_node_0.ip_addresses : ip.address if ip.type == "private-ip"])
   node1_public_ip   = one([for ip in cherryservers_server.garage_node_1.ip_addresses : ip.address if ip.type == "primary-ip"])

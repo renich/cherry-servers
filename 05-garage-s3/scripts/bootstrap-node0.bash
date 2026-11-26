@@ -37,7 +37,7 @@ dnf -y install epel-release
 /usr/bin/crb enable || true
 dnf -y install podman caddy firewalld jq curl dnf-automatic policycoreutils-python-utils
 
-# 3. Configurar Firewalld ANTES de arrancar contenedores o proxy inverso
+# 3. Configurar Firewalld antes de arrancar contenedores o proxy inverso
 #    Puerto RPC/Admin/S3 restringido a RFC 1918 (internal); WAN (public) solo HTTP/HTTPS + SSH.
 systemctl --now enable firewalld
 firewall-cmd --permanent --zone=public --add-service=http
@@ -298,7 +298,7 @@ UNIT_EOF
 chmod 644 /etc/systemd/system/garage-cluster-init.service
 systemctl daemon-reload
 systemctl enable garage-cluster-init.service
-systemctl start --no-block garage-cluster-init.service
+systemctl --no-block start garage-cluster-init.service
 
 # 8. Actualizaciones automáticas de seguridad en DNF5 (%ghost guard)
 [[ -f /etc/dnf/automatic.conf ]] || cp /usr/share/dnf5/dnf5-plugins/automatic.conf /etc/dnf/automatic.conf 2>/dev/null || true

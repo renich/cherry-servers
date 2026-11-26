@@ -15,7 +15,6 @@
       - firewalld
       - chrony
       - curl
-      - jq
 
   tasks:
     - name: Instalar paquetes esenciales del sistema y repositorio EPEL 10
@@ -91,7 +90,7 @@
         cmd: /usr/sbin/nginx -t
       changed_when: false
 
-    - name: Agregar usuario nginx al grupo complementario de webapp para traversal de directorios
+    - name: Agregar usuario nginx al grupo complementario de webapp para recorrido de directorios
       ansible.builtin.user:
         name: nginx
         groups: "{{ webapp_service_group }}"

@@ -17,8 +17,9 @@ exec > >(tee -a /var/log/user-data.log | logger -t user-data -s 2>/dev/console) 
 echo "[+] Iniciando despliegue de Caddy + Vaultwarden en CentOS Stream 10..."
 
 # Establecer nombre de host si fue proporcionado por la infraestructura
-if [[ -n "${SERVER_NAME:-}" ]]; then
-  hostnamectl set-hostname "${SERVER_NAME}" || true
+target_hostname="${SERVER_NAME}"
+if [[ -n "$target_hostname" ]]; then
+  hostnamectl set-hostname "$target_hostname" || true
 fi
 
 # 1. Habilitar repositorios EPEL 10 y CRB
@@ -26,12 +27,12 @@ echo "[+] Configurando repositorios EPEL 10 y CRB..."
 dnf -y install epel-release
 /usr/bin/crb enable || true
 
-# 2. Instalar Caddy, Podman, utilerías de actualización y herramientas auxiliares
-echo "[+] Instalando paquetes RPM desde EPEL 10: caddy, podman, firewalld, curl, jq y dnf-automatic..."
-dnf -y install caddy podman firewalld curl jq dnf-automatic
+# 2. Instalar Caddy, Podman, SELinux CLI y herramientas auxiliares
+echo "[+] Instalando paquetes RPM desde EPEL 10 y BaseOS/AppStream..."
+dnf -y install caddy podman firewalld curl jq dnf-automatic policycoreutils-python-utils
 
 # 3. Configuración anticipada de Firewalld para HTTP (80/tcp) y HTTPS (443/tcp)
-echo "[+] Configurando reglas de firewall (HTTP y HTTPS)..."
+echo "[+] Configurando reglas de firewall para HTTP y HTTPS..."
 systemctl --now enable firewalld
 firewall-cmd --permanent --add-service=http
 firewall-cmd --permanent --add-service=https
@@ -58,6 +59,10 @@ Volume=/srv/vaultwarden/data:/data:Z
 Environment=SIGNUPS_ALLOWED=true
 AutoUpdate=registry
 
+[Service]
+Restart=on-failure
+TimeoutStartSec=180
+
 [Install]
 WantedBy=multi-user.target default.target
 EOF
@@ -81,10 +86,14 @@ systemctl --now enable dnf-automatic.timer
 echo "[+] Generando configuración de Caddy (/etc/caddy/Caddyfile)..."
 mkdir -p /etc/caddy /var/log/caddy
 
-EFFECTIVE_DOMAIN="${VAULT_DOMAIN}"
-if [[ -z "$EFFECTIVE_DOMAIN" || "$EFFECTIVE_DOMAIN" == "auto" ]]; then
-  SERVER_IP=$(curl -s4 --connect-timeout 5 --max-time 10 https://icanhazip.com || ip -4 -o addr show scope global | awk '$2 !~ /^(podman|veth|br-)/ {print $4}' | cut -d/ -f1 | head -n1)
-  EFFECTIVE_DOMAIN="$SERVER_IP.sslip.io"
+effective_domain="${VAULT_DOMAIN}"
+if [[ -z "$effective_domain" || "$effective_domain" == "auto" ]]; then
+  public_ip=$(curl -fs4 --connect-timeout 5 --max-time 10 https://icanhazip.com || ip -4 -o addr show scope global | awk '$2 !~ /^(podman|veth|br-|cni)/ && $4 !~ /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/ {print $4}' | cut -d/ -f1 | head -n1)
+  if [[ -z "$public_ip" ]]; then
+    echo "[-] Error: No se pudo determinar la dirección IPv4 pública del servidor." >&2
+    exit 1
+  fi
+  effective_domain="$public_ip.sslip.io"
 fi
 
 cat << EOF > /etc/caddy/Caddyfile
@@ -92,10 +101,10 @@ cat << EOF > /etc/caddy/Caddyfile
 # Configuración de Caddy para Vaultwarden en CentOS Stream 10
 # =============================================================================
 
-$EFFECTIVE_DOMAIN {
+$effective_domain {
     ${TLS_DIRECTIVE}
 
-    # Proxy inverso al contenedor local en loopback (Caddy gestiona X-Forwarded-* automáticamente)
+    # Proxy inverso al contenedor local en loopback; Caddy gestiona X-Forwarded-* automáticamente
     reverse_proxy 127.0.0.1:8080
 
     log {
@@ -105,19 +114,23 @@ $EFFECTIVE_DOMAIN {
 }
 EOF
 
-chown -R caddy:caddy /etc/caddy /var/log/caddy
+caddy fmt --overwrite /etc/caddy/Caddyfile
+chown root:caddy /etc/caddy /etc/caddy/Caddyfile
+chmod 750 /etc/caddy
 chmod 640 /etc/caddy/Caddyfile
+chown caddy:caddy /var/log/caddy
+chmod 750 /var/log/caddy
 
-# 8. Configuración estricta de SELinux (Modo Enforcing)
-echo "[+] Aplicando políticas de SELinux..."
-# Permitir que el dominio de Caddy (httpd_t) inicie conexiones TCP hacia localhost
+# 8. Configuración estricta de SELinux en modo Enforcing y validación previa
+echo "[+] Aplicando políticas de SELinux y validando Caddyfile..."
+semanage fcontext -a -t httpd_log_t '/var/log/caddy(/.*)?' 2>/dev/null || semanage fcontext -m -t httpd_log_t '/var/log/caddy(/.*)?' || true
 setsebool -P httpd_can_network_connect 1
-
-# Restaurar etiquetas de contexto en configuraciones y registros de Caddy
+restorecon -Rv /etc/caddy /var/log/caddy
+runuser -u caddy -- caddy validate --config /etc/caddy/Caddyfile
 restorecon -Rv /etc/caddy /var/log/caddy
 
-# 9. Arrancar e iniciar el servicio Caddy
+# 9. Habilitar e iniciar el servicio Caddy
 echo "[+] Habilitando e iniciando servicio caddy.service..."
 systemctl --now enable caddy.service
 
-echo "[+] Despliegue completado con éxito. Vaultwarden disponible bajo https://$EFFECTIVE_DOMAIN"
+echo "[+] Despliegue completado con éxito. Vaultwarden disponible bajo https://$effective_domain"

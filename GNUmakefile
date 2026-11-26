@@ -41,14 +41,18 @@ rst_paths = sorted(
 for p in rst_paths:
     lines = p.read_text(encoding="utf-8").splitlines()
     in_code = False
+    code_lang = ""
     code_indent = 0
     for idx, line in enumerate(lines, 1):
-        if re.match(r"^\s*\.\.\s+code-block::", line):
+        m_code = re.match(r"^\s*\.\.\s+code-block::\s*(\S+)?", line)
+        if m_code:
             in_code = True
+            code_lang = (m_code.group(1) or "").lower()
             code_indent = len(line) - len(line.lstrip(" "))
             continue
         if in_code and line.strip() and (len(line) - len(line.lstrip(" "))) <= code_indent:
             in_code = False
+            code_lang = ""
         if "file://" in line:
             errors.append(f"{p}:{idx}: forbidden file:// link")
         if "git checkout 0" in line:
@@ -56,12 +60,17 @@ for p in rst_paths:
         if "\u2014" in line:
             errors.append(f"{p}:{idx}: forbidden em-dash")
         if not in_code:
+            if "**``" in line or "``**" in line:
+                errors.append(f"{p}:{idx}: broken nested RST inline markup (**``...``**): {line}")
             stripped = re.sub(r"``[^`]+``", "", line)
             stripped = re.sub(r"<https?://[^>]+>|<[^>]+\.[a-z0-9]+/?[^>]*>", "", stripped)
             if " / " in stripped:
                 errors.append(f"{p}:{idx}: forbidden spaced forward slash")
             if "(" in stripped or ")" in stripped:
                 errors.append(f"{p}:{idx}: parentheses forbidden in RST prose/headings: {line}")
+        elif code_lang in ("bash", "sh", "shell"):
+            if re.search(r"<[A-Z][A-Z0-9_]{2,}>", line):
+                errors.append(f"{p}:{idx}: angle-bracket placeholder in bash block (use $${{VAR}}): {line}")
 
 pngs = sorted(root.glob("[01][0-9]-*/assets/*.png"))
 for p in pngs:
@@ -79,7 +88,41 @@ print(f"Hygiene OK: {len(rst_paths)} RST files, {len(pngs)} PNG assets verified.
 endef
 export HYGIENE_PY
 
-.PHONY: all check fmt fmt-check lint-rst lint-bash lint-ansible lint-hygiene validate-tofu verify-clean-state help
+define VERIFY_TEMPLATES_PY
+import os, pathlib, re, subprocess, sys
+
+tofu = os.environ.get("TOFU", "tofu")
+errors = []
+checked = 0
+
+for tf in sorted(pathlib.Path(".").glob("[01][0-9]-*/tofu/main.tf")):
+    text = tf.read_text(encoding="utf-8")
+    for m in re.finditer(r'templatefile\(\s*"([^"]+)"\s*,\s*\{([^}]*)\}\s*\)', text, re.S):
+        path_expr, body = m.group(1), m.group(2)
+        keys = re.findall(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=", body, re.M)
+        rel_path = path_expr.split("}/", 1)[-1]
+        kv = ", ".join(f'{k} = "dummy"' for k in keys)
+        expr = f'jsonencode(templatefile("{rel_path}", {{ {kv} }}))\n'
+        res = subprocess.run([tofu, f"-chdir={tf.parent}", "console", "-no-color"], input=expr, text=True, capture_output=True)
+        checked += 1
+        if res.returncode != 0:
+            errors.append(f"{tf}: templatefile({rel_path}) failed:\n{res.stderr or res.stdout}")
+            continue
+        rendered = subprocess.run(["python3", "-c", "import json, sys; print(json.loads(json.loads(sys.stdin.read())))"], input=res.stdout.strip(), text=True, capture_output=True)
+        if rendered.returncode != 0:
+            errors.append(f"{tf}: could not decode rendered templatefile({rel_path}): {rendered.stderr}")
+            continue
+        syn = subprocess.run(["bash", "-n"], input=rendered.stdout, text=True, capture_output=True)
+        if syn.returncode != 0:
+            errors.append(f"{tf}: rendered templatefile({rel_path}) failed bash -n:\n{syn.stderr}")
+
+if errors:
+    sys.exit("\n".join(errors))
+print(f"Templates OK: {checked} OpenTofu templatefile() calls rendered and passed bash -n.")
+endef
+export VERIFY_TEMPLATES_PY
+
+.PHONY: all check fmt fmt-check lint-rst lint-bash lint-ansible lint-hygiene validate-tofu verify-templates verify-clean-state help
 
 all: check
 
@@ -133,13 +176,16 @@ validate-tofu: ## Initialize cached plugins and validate all OpenTofu modules
 		$(TOFU) -chdir="$$dir" validate -no-color; \
 	done
 
+verify-templates: ## Empirically evaluate every OpenTofu templatefile() call via tofu console
+	@TOFU="$(TOFU)" $(PYTHON) -c "$$VERIFY_TEMPLATES_PY"
+
 verify-clean-state: ## Fail if any local terraform.tfstate contains active cloud resources
 	@$(PYTHON) -c 'import json, pathlib, sys; bad=[]; [bad.append((str(p), len(json.loads(p.read_text(encoding="utf-8")).get("resources", [])))) for p in sorted(pathlib.Path(".").rglob("terraform.tfstate")) if ".terraform" not in p.parts and len(json.loads(p.read_text(encoding="utf-8")).get("resources", [])) > 0]; sys.exit("\n".join(f"Active state in {p}: {n} resources" for p, n in bad)) if bad else print("All terraform.tfstate files are clean (0 resources).")'
 
 lint-hygiene: ## Enforce repository hygiene: no .md in modules, no file:// links, valid PNGs, typography
 	@$(PYTHON) -c "$$HYGIENE_PY"
 
-check: fmt-check lint-rst lint-bash lint-ansible lint-hygiene validate-tofu verify-clean-state ## Run all deterministic quality gates
+check: fmt-check lint-rst lint-bash lint-ansible lint-hygiene validate-tofu verify-templates verify-clean-state ## Run all deterministic quality gates
 
 help: ## Show available make targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "%-22s %s\n", $$1, $$2}' $(MAKEFILE_LIST)

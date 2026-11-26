@@ -16,19 +16,19 @@ variable "project_id" {
 variable "region" {
   type        = string
   default     = "LT-Siauliai"
-  description = "Slug de la región geográfica en Cherry Servers"
+  description = "Identificador de la región geográfica en Cherry Servers"
 }
 
 variable "server_plan" {
   type        = string
   default     = "B1-1-1gb-20s-shared"
-  description = "Slug del plan de cómputo en Cherry Servers: 3x Cloud VPS 1, ~$0.045 EUR/hr"
+  description = "Identificador del plan de cómputo en Cherry Servers: 3x Cloud VPS 1, ~$0.045 EUR/hr"
 }
 
 variable "server_image" {
   type        = string
   default     = "centos_stream_10_64bit"
-  description = "Slug de la imagen del sistema operativo, CentOS Stream 10 por defecto"
+  description = "Identificador de la imagen del sistema operativo, CentOS Stream 10 por defecto"
 }
 
 variable "ssh_public_key" {

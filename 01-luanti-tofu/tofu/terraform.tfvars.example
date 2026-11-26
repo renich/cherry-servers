@@ -1,13 +1,14 @@
 # =============================================================================
-# Archivo de Ejemplo: Copia este archivo a terraform.tfvars y coloca tus datos
+# Plantilla de Variables Locales; copia este archivo a terraform.tfvars
+# Nunca subas terraform.tfvars a Git y protege sus permisos con chmod 600
 # =============================================================================
 
-cherry_auth_token = "TU_API_TOKEN_DE_CHERRY_SERVERS"
+cherry_auth_token = "TU_TOKEN_DE_API_DE_CHERRY_SERVERS"
 project_id        = 123456
-ssh_public_key    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... tu_correo@dominio.com"
+ssh_public_key    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... tu_correo@ejemplo.com"
+# ssh_key_id      = "20003" # Descomenta si tu clave Ed25519 ya está registrada en Cherry Servers
 server_name       = "0.luanti.linenes.tld"
 server_image      = "centos_stream_10_64bit"
 spot_instance     = false
-# server_port     = 30000 # Puerto UDP por defecto
-# enable_bootstrap = true # Cambiar a false si deseas aprovisionar la máquina vacía para la práctica manual
-
+# server_port      = 30000 # Puerto UDP por defecto
+# enable_bootstrap = true  # Cambia a false para aprovisionar una instancia limpia y practicar el proceso manual
