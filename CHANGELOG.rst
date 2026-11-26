@@ -17,6 +17,24 @@ Compare: `unreleased diff`_.
 
 * Preparación del alcance técnico para el Cómo 06 de Kubernetes ligero K3s en un nodo.
 
+`[0.5.1]`_ - 2026-11-26
+-----------------------
+
+.. rubric:: Added
+
+* Sección ``¿Por qué CentOS Stream 10?`` y **Referencias Oficiales** verificadas con HTTP 200 en ``README.rst`` y en las cinco guías publicadas ``01-luanti-tofu`` hasta ``05-garage-s3``.
+* Soporte uniforme de reutilización de llaves SSH existentes mediante ``ssh_key_id`` con validación ``trimspace`` en los manifiestos OpenTofu de los Cómos 01 a 05.
+* Objetivo ``verify-templates`` en ``GNUmakefile`` para evaluar empíricamente cada llamada ``templatefile()`` vía ``tofu console`` y comprobar sintaxis ``bash -n`` sobre el script renderizado, junto con detección de marcado RST anidado roto y marcadores angulares en bloques Bash.
+
+.. rubric:: Fixed
+
+* Corrección de fallos de ejecución en ``templatefile()`` dentro de ``02-caddy-podman/scripts/bootstrap.bash``, ``04-primitives-dns-ntp-nfs/scripts/bootstrap.bash`` y ``04-primitives-dns-ntp-nfs/scripts/bootstrap-client.bash``.
+* Corrección de contexto SELinux ``httpd_log_t`` sobre ``/var/log/caddy(/.*)?`` y validación sin privilegios ``runuser -u caddy`` en el Cómo 02, alineándolo con CentOS Stream 10 y EPEL 10.
+* Corrección en el Cómo 01 para propagar ``var.server_port`` hacia ``/etc/sysconfig/minetest/default.conf``, advertir sobre el rol administrativo de ``name``, ordenar SELinux/Firewalld antes del arranque del servicio y añadir Paso H con guardia ``%ghost`` de DNF5.
+* Corrección en el Cómo 03 del directorio aislado de práctica manual, marcado RST anidado, conteo real ``changed=3`` en recuperación de desvío, eliminación de duplicidad de ``ansible.posix`` y captura dinámica de IP desde ``tofu output``.
+* Corrección integral en el Cómo 05 de todas las variables de entorno en español con instrucciones explícitas de obtención, Quadlet renderizable por heredoc, lectura binaria real durante la prueba de caos 2 de 3, advertencia sobre exposición pública de buckets web y reemplazo del uso engañoso de ``eval``.
+* Documentación explícita en los cinco Cómos sobre dónde obtener cada dirección IP, secreto, ``cherry_auth_token``, ``project_id``, ``ssh_public_key`` y ``ssh_key_id``, así como limpieza de ``known_hosts`` y servidores manuales al finalizar.
+
 `[0.5.0]`_ - 2026-11-24
 -----------------------
 
@@ -86,7 +104,8 @@ Compare: `unreleased diff`_.
 * Implementación completa del Cómo 01 en ``01-luanti-tofu/`` con servidor dedicado de Luanti mediante COPR y OpenTofu sobre CentOS Stream 10.
 * Banners gráficos ``hero.png`` y ``telegram-banner.png`` para el Cómo 01.
 
-.. _unreleased diff: https://gitlab.com/renich/cherry-servers/-/compare/v0.5.0...master
+.. _unreleased diff: https://gitlab.com/renich/cherry-servers/-/compare/v0.5.1...master
+.. _[0.5.1]: https://gitlab.com/renich/cherry-servers/-/releases/v0.5.1
 .. _[0.5.0]: https://gitlab.com/renich/cherry-servers/-/releases/v0.5.0
 .. _[0.4.0]: https://gitlab.com/renich/cherry-servers/-/releases/v0.4.0
 .. _[0.3.0]: https://gitlab.com/renich/cherry-servers/-/releases/v0.3.0
