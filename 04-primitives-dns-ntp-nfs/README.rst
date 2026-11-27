@@ -948,7 +948,7 @@ Dudas y Preguntas
 
 Si tienes alguna duda, encuentras algún detalle técnico o quieres compartir cómo resolviste los retos, abre una incidencia en el repositorio oficial o participa en la comunidad de `r/LinuxEnEspanol <https://www.reddit.com/r/LinuxEnEspanol/>`__:
 
-* `Reportar una incidencia o consulta en GitLab <https://gitlab.com/renich/cherry-servers/-/issues>`__
+* `Reportar una incidencia o consulta en GitLab <https://gitlab.com/renich/cherry-servers/-/work_items>`__
 * `Continuar con el Cómo 05: Almacenamiento de objetos distribuido S3 con Garage <../05-garage-s3/README.rst>`__
 
 Licencia

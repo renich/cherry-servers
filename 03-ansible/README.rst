@@ -1225,7 +1225,7 @@ Dudas y Preguntas
 
 Si tienes alguna pregunta, encuentras un detalle técnico o quieres compartir cómo resolviste los retos, abre una conversación en nuestro repositorio oficial:
 
-* `Reportar una incidencia o consulta en GitLab <https://gitlab.com/renich/cherry-servers/-/issues>`__
+* `Reportar una incidencia o consulta en GitLab <https://gitlab.com/renich/cherry-servers/-/work_items>`__
 * Siguiente laboratorio de la serie: `Cómo 04: Primitivas de Infraestructura DNS, NTP y NFSv4 en CentOS Stream 10 <../04-primitives-dns-ntp-nfs/README.rst>`__
 
 Licencia

@@ -836,7 +836,7 @@ Dudas y Preguntas
 
 ¿Encontraste algún detalle técnico, quieres proponer una mejora o compartir tus resultados del quórum distribuido? Abre un reporte o incidencia en el repositorio oficial o súmate a la conversación en la comunidad:
 
-* `Abrir un reporte o incidencia en GitLab <https://gitlab.com/renich/cherry-servers/-/issues>`__
+* `Abrir un reporte o incidencia en GitLab <https://gitlab.com/renich/cherry-servers/-/work_items>`__
 * `Comunidad r/LinuxEnEspanol en Reddit <https://www.reddit.com/r/LinuxEnEspanol/>`__
 
 Cuando termines tus retos, te espera el siguiente paso de la serie: **Cómo 06: Clúster K3s Mononodo** sobre CentOS Stream 10.

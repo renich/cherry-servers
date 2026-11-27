@@ -455,7 +455,7 @@ Referencias Oficiales
 Dudas y Preguntas
 =================
 
-¿Encontraste algún detalle técnico, quieres proponer una mejora o tienes dudas sobre alguno de los pasos? Abre un ticket en `Issues en GitLab <https://gitlab.com/renich/cherry-servers/-/issues>`__. ¡Nos vemos en el `Cómo 02: Proxy Inverso con Caddy y Vaultwarden en Podman <../02-caddy-podman/README.rst>`__!
+¿Encontraste algún detalle técnico, quieres proponer una mejora o tienes dudas sobre alguno de los pasos? Abre una incidencia en `GitLab <https://gitlab.com/renich/cherry-servers/-/work_items>`__ o comenta en `r/LinuxEnEspanol <https://www.reddit.com/r/LinuxEnEspanol/>`__. ¡Nos vemos en el `Cómo 02: Proxy Inverso con Caddy y Vaultwarden en Podman <../02-caddy-podman/README.rst>`__!
 
 Licencia
 ========

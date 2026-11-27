@@ -609,7 +609,7 @@ Referencias Oficiales
 Dudas y Preguntas
 =================
 
-¿Tienes preguntas sobre Podman Quadlets, configuración de Caddy o políticas de SELinux? Abre un ticket en `Issues del repositorio en GitLab <https://gitlab.com/renich/cherry-servers/-/issues>`__ o súmate a las conversaciones de la comunidad. Continúa tu aprendizaje en el `Cómo 03: Reconstrucción y Automatización con Ansible <../03-ansible/README.rst>`__.
+¿Tienes preguntas sobre Podman Quadlets, configuración de Caddy o políticas de SELinux? Abre una incidencia en `GitLab <https://gitlab.com/renich/cherry-servers/-/work_items>`__ o súmate a las conversaciones en `r/LinuxEnEspanol <https://www.reddit.com/r/LinuxEnEspanol/>`__. Continúa tu aprendizaje en el `Cómo 03: Reconstrucción y Automatización con Ansible <../03-ansible/README.rst>`__.
 
 Licencia
 ========
